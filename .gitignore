@@ -40,6 +40,9 @@ go.work.sum
 *.swp
 *.swo
 
+# Live-captured review fixtures (make regen-fixtures); reviewed before use, never auto-committed
+/testdata/*_live.html
+
 # OS cruft
 .DS_Store
 Thumbs.db
