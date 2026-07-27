@@ -66,7 +66,9 @@ func UpdateEntry(path, id string, u Update) error {
 	if err := enc.Encode(&doc); err != nil {
 		return fmt.Errorf("manifest: encode %s: %w", path, err)
 	}
-	_ = enc.Close()
+	if err := enc.Close(); err != nil {
+		return fmt.Errorf("manifest: encode %s: %w", path, err)
+	}
 	if err := os.WriteFile(path, buf.Bytes(), 0o644); err != nil {
 		return fmt.Errorf("manifest: write %s: %w", path, err)
 	}
