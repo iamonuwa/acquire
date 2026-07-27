@@ -9,8 +9,6 @@ import (
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
 )
 
-// Compile-time proof that *Manifest satisfies the interface config uses for
-// the SPEC §4.1 cross-repo validation.
 var _ config.ManifestIndex = (*manifest.Manifest)(nil)
 
 const sample = `- id: nlpdp-sa-criteria
@@ -105,7 +103,6 @@ func TestLoad_Missing(t *testing.T) {
 	}
 }
 
-// TestCrossValidation wires a real Manifest into config's §4.1 check.
 func TestCrossValidation(t *testing.T) {
 	m, err := manifest.Load(writeManifest(t, sample))
 	if err != nil {
@@ -121,8 +118,6 @@ func TestCrossValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// nlpdp has a manifest entry, but hc-dpd-allfiles is active in the manifest
-	// with no poll row → must be flagged.
 	if err := tbl.ValidateAgainstManifest(m); err == nil {
 		t.Error("expected orphan-active-entry error")
 	}

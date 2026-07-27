@@ -8,8 +8,6 @@ import (
 	polldata "gitlab.com/cail-health/cail-acquire/config"
 )
 
-// TestLoad_EmbeddedTableIsValid parses the real embedded poll table (SPEC §4.1)
-// so a malformed shipped config fails the build, not production.
 func TestLoad_EmbeddedTableIsValid(t *testing.T) {
 	tbl, err := Load(polldata.PollYAML)
 	if err != nil {
@@ -186,7 +184,6 @@ func TestDuration_Unmarshal(t *testing.T) {
 	}
 }
 
-// fakeManifest implements ManifestIndex for cross-repo validation tests.
 type fakeManifest struct {
 	has    map[string]bool
 	active []string

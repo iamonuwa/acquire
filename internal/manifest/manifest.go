@@ -1,9 +1,4 @@
-// Package manifest reads sources.yaml from the cail-rules working copy
-// (SPEC §2, §4.2). The binary holds no manifest state of its own.
-//
-// Milestone 2 needs only the read side: the index URL for a source, and the
-// two lookups (Has, ActiveIDs) that satisfy config.ManifestIndex for the §4.1
-// cross-repo validation. Writing hash/provenance fields back is milestone 3+.
+// Package manifest reads sources.yaml from the cail-rules working copy.
 package manifest
 
 import (
@@ -13,14 +8,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-const stateActive = "active"
+const (
+	stateActive  = "active"
+	urlKindIndex = "index"
+)
 
-// urlKindIndex is the only url_kind the fetcher treats as an index page.
-const urlKindIndex = "index"
-
-// Entry is one sources.yaml record. Only the fields milestone 2 reads are
-// modelled explicitly; the rest are tolerated by yaml's default of ignoring
-// unknown keys.
+// Entry is one sources.yaml record.
 type Entry struct {
 	ID             string `yaml:"id"`
 	Jurisdiction   string `yaml:"jurisdiction"`
@@ -40,8 +33,7 @@ type Manifest struct {
 	byID    map[string]*Entry
 }
 
-// Load reads and parses sources.yaml from path. sources.yaml is a top-level
-// YAML sequence of entries (SPEC §4.2), not a mapping.
+// Load reads and parses sources.yaml (a top-level YAML sequence) from path.
 func Load(path string) (*Manifest, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -71,9 +63,7 @@ func (m *Manifest) Entry(id string) (*Entry, bool) {
 	return e, ok
 }
 
-// IndexURL returns the index-page URL for id — the input hop 1 fetches. It is
-// an error if the source is absent, has no url, or is not url_kind: index
-// (fail loudly rather than fetch the wrong thing — CLAUDE rule 10).
+// IndexURL returns the index URL for id, erroring if absent, empty, or not an index url.
 func (m *Manifest) IndexURL(id string) (string, error) {
 	e, ok := m.byID[id]
 	if !ok {
@@ -88,13 +78,13 @@ func (m *Manifest) IndexURL(id string) (string, error) {
 	return e.URL, nil
 }
 
-// Has reports whether sources.yaml has an entry for id (config.ManifestIndex).
+// Has reports whether an entry for id exists.
 func (m *Manifest) Has(id string) bool {
 	_, ok := m.byID[id]
 	return ok
 }
 
-// ActiveIDs lists entries in state: active (config.ManifestIndex).
+// ActiveIDs lists entries in state: active.
 func (m *Manifest) ActiveIDs() []string {
 	var ids []string
 	for i := range m.entries {

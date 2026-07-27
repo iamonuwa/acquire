@@ -12,19 +12,18 @@ import (
 	"gitlab.com/cail-health/cail-acquire/internal/config"
 )
 
-// AnchorMatch is hop-1's result: the discovered payload URL plus the context a
-// human reviewer reads in the diff header (SPEC §6.1). AnchorText carries e.g.
-// NL's "Last updated on July 16, 2026" — recorded, never hashed (CLAUDE.md).
+// AnchorMatch is hop-1's result. AnchorText (e.g. "Last updated on ...") is
+// recorded for the diff header, never hashed.
 type AnchorMatch struct {
-	URL        *url.URL // absolute, resolved against the index page's URL
-	RawHref    string   // href exactly as written in the page
-	AnchorText string   // whitespace-collapsed text of the matched anchor
+	URL        *url.URL
+	RawHref    string
+	AnchorText string
 }
 
-// ScrapeSpec is the fetch-relevant projection of a poll row's scrape config.
+// ScrapeSpec is the fetch-relevant projection of a source's scrape config.
 type ScrapeSpec struct {
-	LinkScope string         // CSS selector, e.g. a[href$=".pdf"]
-	AnchorRE  *regexp.Regexp // compiled anchor pattern
+	LinkScope string
+	AnchorRE  *regexp.Regexp
 }
 
 // SpecFor builds a ScrapeSpec from a validated source row.
@@ -32,25 +31,19 @@ func SpecFor(s *config.Source) ScrapeSpec {
 	return ScrapeSpec{LinkScope: s.Scrape.LinkScope, AnchorRE: s.Scrape.AnchorRE()}
 }
 
-// Strategy is the fetch enum's behavior, not per-source code (SPEC §2, §6.1).
-// DPD (milestone 7) adds one implementation and one registry entry, nothing else.
+// Strategy is a fetch enum's behavior.
 type Strategy interface {
-	// Resolve is hop 1: discover the single payload URL from the index page.
-	// (Hop 2, the payload GET, is added at milestone 3.)
 	Resolve(ctx context.Context, c *Client, indexURL string, spec ScrapeSpec) (*AnchorMatch, error)
 }
 
-// ScrapeAnchor implements the two-hop scrape_anchor strategy (hop 1 here).
+// ScrapeAnchor implements the scrape_anchor strategy (hop 1 here).
 type ScrapeAnchor struct{}
 
 var registry = map[config.Fetch]Strategy{
 	config.FetchScrapeAnchor: ScrapeAnchor{},
-	// config.FetchArchive is registered at milestone 7.
 }
 
-// Get returns the fetch strategy for a config enum value. An unknown or
-// not-yet-implemented strategy (e.g. archive before milestone 7) is a fatal
-// config error (exit 40) — never a silent fallback (CLAUDE rule 10).
+// Get returns the fetch strategy for f, or a fatal error if none is registered.
 func Get(f config.Fetch) (Strategy, error) {
 	s, ok := registry[f]
 	if !ok {
@@ -59,9 +52,8 @@ func Get(f config.Fetch) (Strategy, error) {
 	return s, nil
 }
 
-// Resolve GETs the index page and requires exactly one anchor whose href
-// matches spec.AnchorRE within spec.LinkScope. Zero matches and two-or-more
-// matches are BOTH failures — never pick-the-first (SPEC §6.1, CLAUDE rule 10).
+// Resolve GETs the index page and requires exactly one in-scope anchor matching
+// spec.AnchorRE. Zero and two-or-more are both failures, never pick-the-first.
 func (ScrapeAnchor) Resolve(ctx context.Context, c *Client, indexURL string, spec ScrapeSpec) (*AnchorMatch, error) {
 	if spec.AnchorRE == nil {
 		return nil, fmt.Errorf("fetch: scrape_anchor for %s has no compiled anchor pattern", indexURL)
@@ -105,7 +97,7 @@ func (ScrapeAnchor) Resolve(ctx context.Context, c *Client, indexURL string, spe
 		abs := base.ResolveReference(ref)
 		key := abs.String()
 		if seen[key] {
-			return true // same link listed twice is not a multi-match
+			return true
 		}
 		seen[key] = true
 		matches = append(matches, &AnchorMatch{
@@ -143,8 +135,8 @@ func (ScrapeAnchor) Resolve(ctx context.Context, c *Client, indexURL string, spe
 	}
 }
 
-// NoMatchError means zero in-scope links matched the anchor pattern. Scanned
-// distinguishes "selector matched nothing" from "regex matched nothing".
+// NoMatchError means zero in-scope links matched. Scanned distinguishes a
+// selector miss from a regex miss.
 type NoMatchError struct {
 	IndexURL  string
 	LinkScope string
@@ -157,8 +149,7 @@ func (e *NoMatchError) Error() string {
 		e.Pattern, e.LinkScope, e.IndexURL, e.Scanned)
 }
 
-// MultiMatchError means two or more distinct links matched. It lists them all
-// so the ambiguity is loud — never resolved by picking the first (SPEC §6.1).
+// MultiMatchError means two or more distinct links matched; it lists them all.
 type MultiMatchError struct {
 	IndexURL  string
 	LinkScope string
@@ -171,8 +162,6 @@ func (e *MultiMatchError) Error() string {
 		len(e.Matches), e.Pattern, e.IndexURL, strings.Join(e.Matches, ", "))
 }
 
-// collapseSpace trims and collapses internal runs of whitespace to single
-// spaces, so multi-line anchor text records as one clean line.
 func collapseSpace(s string) string {
 	return strings.Join(strings.Fields(s), " ")
 }

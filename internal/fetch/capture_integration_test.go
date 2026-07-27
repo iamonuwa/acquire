@@ -10,16 +10,12 @@ import (
 	"time"
 )
 
-// nlIndexURL is the verified NL index (manifest) URL (SPEC §3.1). It is the
-// stable index page, not the date-stamped payload URL — capturing it here is
-// fine (CLAUDE rule 2 forbids hardcoding the *payload* URL).
+// nlIndexURL is the verified NL index (manifest) URL, not the payload URL.
 const nlIndexURL = "https://www.gov.nl.ca/hcs/prescription/covered-specialauthdrugs/"
 
-// TestCaptureNLIndex fetches the live NL index page and writes it beside the
-// synthetic fixtures as *_live.html for a human to review before commit
-// (CLAUDE rule 13). Run via `make regen-fixtures`. It never overwrites the
-// deterministic synthetic fixtures. It also asserts the live page still
-// resolves to exactly one Criteria PDF, so a page-shape change fails loudly.
+// TestCaptureNLIndex fetches the live NL index into a *_live.html for human
+// review (run via `make regen-fixtures`) and asserts it still resolves to
+// exactly one Criteria PDF.
 func TestCaptureNLIndex(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
@@ -37,7 +33,7 @@ func TestCaptureNLIndex(t *testing.T) {
 	if err := os.WriteFile(out, body, 0o644); err != nil {
 		t.Fatalf("write captured fixture: %v", err)
 	}
-	t.Logf("captured %d bytes to %s — review before commit (CLAUDE rule 13)", len(body), out)
+	t.Logf("captured %d bytes to %s — review before commit", len(body), out)
 
 	m, err := ScrapeAnchor{}.Resolve(ctx, c, nlIndexURL, nlSpec())
 	if err != nil {

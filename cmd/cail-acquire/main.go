@@ -1,9 +1,5 @@
 // Command cail-acquire polls a fixed table of Canadian payer source URLs.
-//
-// Milestone 2 implements only the `poll` subcommand's resolve-and-report path:
-// discover each source's current payload URL via scrape_anchor and report it.
-// No payload fetch, hash, store, PHI gate, diff, or git — those are later
-// milestones (SPEC §10). The other subcommands are reserved, not yet built.
+// Milestone 2 implements only poll's resolve-and-report path.
 package main
 
 import (
@@ -19,17 +15,16 @@ import (
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
 )
 
-// Exit codes (SPEC §5.1), aggregate across sources, highest severity wins.
+// Exit codes, aggregated across sources with highest severity winning.
 const (
-	exitOK     = 0  // all sources checked, no change
-	exitChange = 10 // change found, MR opened — normal operation (not reachable in M2)
-	exitFetch  = 20 // fetch, normalize, or store failure
-	exitPHI    = 30 // PHI gate fired (not reachable in M2)
-	exitConfig = 40 // config or manifest error, nothing ran
+	exitOK     = 0
+	exitChange = 10
+	exitFetch  = 20
+	exitPHI    = 30
+	exitConfig = 40
 )
 
-// defaultManifestPath is the cail-rules working copy on the droplet (SPEC §9.2).
-// Override with --manifest for local development.
+// defaultManifestPath is the droplet's cail-rules working copy.
 const defaultManifestPath = "/var/lib/cail-acquire/cail-rules/sources.yaml"
 
 func main() { os.Exit(dispatch(os.Args[1:])) }
@@ -43,7 +38,7 @@ func dispatch(args []string) int {
 	case "poll":
 		return runPoll(args[1:])
 	case "catalogue", "status", "verify-din":
-		fmt.Fprintf(os.Stderr, "cail-acquire: %q is not implemented yet (later milestone)\n", args[0])
+		fmt.Fprintf(os.Stderr, "cail-acquire: %q is not implemented yet\n", args[0])
 		return exitConfig
 	default:
 		fmt.Fprintf(os.Stderr, "cail-acquire: unknown subcommand %q\n", args[0])
@@ -71,15 +66,14 @@ func runPoll(args []string) int {
 	fs := flag.NewFlagSet("poll", flag.ContinueOnError)
 	source := fs.String("source", "", "only poll this source id (default: all enabled)")
 	dryRun := fs.Bool("dry-run", false, "resolve and report without writing anywhere")
-	force := fs.Bool("force", false, "ignore poll_interval (no effect in milestone 2; interval state is milestone 10)")
+	force := fs.Bool("force", false, "ignore poll_interval (no effect until milestone 10)")
 	configPath := fs.String("config", "", "path to sources.poll.yaml (default: embedded table)")
 	manifestPath := fs.String("manifest", defaultManifestPath, "path to cail-rules sources.yaml")
 	if err := fs.Parse(args); err != nil {
 		return exitConfig
 	}
-	_ = force // accepted for forward-compatibility; interval skipping arrives at M10
+	_ = force
 
-	// Load and validate the poll table (SPEC §4.1). Any failure is fatal (40).
 	raw := polldata.PollYAML
 	if *configPath != "" {
 		b, err := os.ReadFile(*configPath)
@@ -95,7 +89,6 @@ func runPoll(args []string) int {
 		return exitConfig
 	}
 
-	// Load the manifest and run the §4.1 cross-repo validation.
 	man, err := manifest.Load(*manifestPath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -131,8 +124,6 @@ func runPoll(args []string) int {
 	return exit
 }
 
-// pollSource resolves one source's payload URL and reports it. It returns the
-// severity for this source (exitOK or exitFetch).
 func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, src *config.Source, dryRun bool) int {
 	indexURL, err := man.IndexURL(src.ID)
 	if err != nil {
@@ -146,7 +137,6 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 	}
 	m, err := strat.Resolve(ctx, client, indexURL, fetch.SpecFor(src))
 	if err != nil {
-		// Zero-match and multi-match are loud, typed failures (SPEC §6.1).
 		var nm *fetch.NoMatchError
 		var mm *fetch.MultiMatchError
 		switch {

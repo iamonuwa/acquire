@@ -28,13 +28,11 @@ func TestDispatch_UnknownAndReserved(t *testing.T) {
 }
 
 func TestRunPoll_BadManifest(t *testing.T) {
-	// Embedded poll table loads fine; a missing manifest is a fatal config error.
 	if got := runPoll([]string{"--manifest", filepath.Join(t.TempDir(), "nope.yaml")}); got != exitConfig {
 		t.Errorf("runPoll with missing manifest = %d, want %d", got, exitConfig)
 	}
 }
 
-// validManifest matches the embedded poll table so ValidateAgainstManifest passes.
 const validManifest = `- id: nlpdp-sa-criteria
   url: https://www.gov.nl.ca/hcs/prescription/covered-specialauthdrugs/
   url_kind: index
@@ -55,8 +53,6 @@ func writeTemp(t *testing.T, body string) string {
 }
 
 func TestRunPoll_SourceNoMatch(t *testing.T) {
-	// A --source that matches no enabled row is a fatal config error, and returns
-	// before any network call.
 	mp := writeTemp(t, validManifest)
 	if got := runPoll([]string{"--manifest", mp, "--source", "does-not-exist"}); got != exitConfig {
 		t.Errorf("runPoll with unmatched --source = %d, want %d", got, exitConfig)

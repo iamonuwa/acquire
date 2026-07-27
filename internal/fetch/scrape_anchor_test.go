@@ -12,8 +12,6 @@ import (
 	"testing"
 )
 
-// nlSpec is the NL scrape configuration (SPEC §4.1): select .pdf links, keep
-// the Criteria-<Month>-<Year>.pdf one.
 func nlSpec() ScrapeSpec {
 	return ScrapeSpec{
 		LinkScope: `a[href$=".pdf"]`,
@@ -21,7 +19,6 @@ func nlSpec() ScrapeSpec {
 	}
 }
 
-// serveFixture serves the named testdata file for every path.
 func serveFixture(t *testing.T, name string) *httptest.Server {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", name))
@@ -95,7 +92,6 @@ func TestResolveAnchor_RelativeResolution(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	// Request from the real index sub-path so ../../ resolution is exercised.
 	indexURL := srv.URL + "/hcs/prescription/covered-specialauthdrugs/"
 	m, err := ScrapeAnchor{}.Resolve(context.Background(), NewClient(), indexURL, nlSpec())
 	if err != nil {
@@ -106,9 +102,6 @@ func TestResolveAnchor_RelativeResolution(t *testing.T) {
 	}
 }
 
-// TestResolveAnchor_LinkScopeFilters proves the match is driven by the href
-// (via link_scope + regex), not by anchor text: a link whose *text* is a
-// Criteria filename but whose href is not a .pdf must be ignored.
 func TestResolveAnchor_LinkScopeFilters(t *testing.T) {
 	const page = `<!DOCTYPE html><html><body>
 	  <a href="/notes.html">Criteria-July-2026.pdf</a>
@@ -124,7 +117,7 @@ func TestResolveAnchor_LinkScopeFilters(t *testing.T) {
 	if !errors.As(err, &nm) {
 		t.Fatalf("expected *NoMatchError (href-driven match), got %v", err)
 	}
-	if nm.Scanned != 1 { // only the .pdf form link is in scope; the .html link is not
+	if nm.Scanned != 1 {
 		t.Errorf("Scanned = %d, want 1", nm.Scanned)
 	}
 }
