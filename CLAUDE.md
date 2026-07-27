@@ -147,13 +147,13 @@ Aggregate across sources, highest severity wins. Precedence 40, 30, 20, 10, 0.
 
 ## Current position
 
-Milestone 4 of 12. Full table and acceptance criteria in `CAIL-ACQUIRE-SPEC.md` §12.
+Milestone 5 of 12. Full table and acceptance criteria in `CAIL-ACQUIRE-SPEC.md` §12.
 
 - **1** ✅ `DECISIONS.md` corrections committed (`cail-rules` @ 98b6b54)
 - **2** ✅ `scrape_anchor` resolves the NL criteria URL (zero/multi fail loudly; live-verified)
 - **3** ✅ Fetch, `pdftotext -layout`, stable hash (live hash `b7e77792…`; `payload_confirmed` flips)
-- **4** R2 store ← next
-- **5** Seven-day soak ← **gate, do not build past this**
+- **4** ✅ R2 store — content-addressed keys, faked in unit tests; live put + private-bucket check pending creds/soak. Gate placeholder wired before store.
+- **5** Seven-day soak ← **gate, do not build past this** (needs R2 creds + deploy)
 - **7** Add DPD. **Architectural test:** should require a config row, one fetch strategy, one normalizer, nothing else. If anything else must change, stop and say so
 
 ---
