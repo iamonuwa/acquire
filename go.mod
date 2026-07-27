@@ -2,4 +2,12 @@ module gitlab.com/cail-health/cail-acquire
 
 go 1.23
 
-require gopkg.in/yaml.v3 v3.0.1
+require (
+	github.com/PuerkitoBio/goquery v1.10.0
+	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/andybalholm/cascadia v1.3.2 // indirect
+	golang.org/x/net v0.29.0 // indirect
+)
