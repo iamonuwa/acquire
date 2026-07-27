@@ -1,0 +1,45 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Compiled binary output for this service
+/acquire
+/cail-acquire
+/cmd/acquire/acquire
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of `go tool cover`
+*.out
+coverage.*
+
+# Go workspace file
+go.work
+go.work.sum
+
+# Dependency directories (with `go mod vendor`)
+/vendor/
+
+# Go build and module cache (if ever placed in-tree)
+/bin/
+/dist/
+
+# Secrets — environment only, never committed (CLAUDE.md rule 11).
+# Keep .env.example as the checked-in template.
+.env
+.env.*
+!.env.example
+
+# Editor / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS cruft
+.DS_Store
+Thumbs.db

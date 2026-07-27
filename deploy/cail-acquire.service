@@ -1,0 +1,35 @@
+# /etc/systemd/system/cail-acquire.service
+[Unit]
+Description=cail-acquire poll
+After=network-online.target
+Wants=network-online.target
+OnFailure=cail-acquire-alert.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/cail-acquire
+ExecStartPost=/usr/bin/curl -fsS --retry 3 https://hc-ping.com/<uuid>
+EnvironmentFile=/etc/cail-acquire/env
+TimeoutStartSec=300
+# hardening
+StateDirectory=cail-acquire
+ProtectSystem=strict
+ReadWritePaths=/var/lib/cail-acquire
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+NoNewPrivileges=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectProc=invisible
+ProcSubset=pid
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallFilter=@system-service
+SystemCallArchitectures=native
+CapabilityBoundingSet=

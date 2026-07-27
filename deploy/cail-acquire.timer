@@ -1,0 +1,13 @@
+# /etc/systemd/system/cail-acquire.timer
+[Unit]
+Description=Run cail-acquire daily
+
+[Timer]
+OnCalendar=*-*-* 09:00:00
+Persistent=true
+RandomizedDelaySec=300
+AccuracySec=1s
+Unit=cail-acquire.service
+
+[Install]
+WantedBy=timers.target
