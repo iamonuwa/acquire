@@ -1,5 +1,5 @@
-// Package store persists content-addressed payloads in Cloudflare R2.
-package store
+// Package payloadstore persists content-addressed payloads in Cloudflare R2.
+package payloadstore
 
 import (
 	"bytes"
@@ -37,7 +37,7 @@ func RequireSecrets() error {
 		}
 	}
 	if len(missing) > 0 {
-		return fmt.Errorf("store: missing required env: %s", strings.Join(missing, ", "))
+		return fmt.Errorf("payloadstore: missing required env: %s", strings.Join(missing, ", "))
 	}
 	return nil
 }
@@ -57,7 +57,7 @@ func NewR2(ctx context.Context) (*R2, error) {
 			os.Getenv("R2_ACCESS_KEY_ID"), os.Getenv("R2_SECRET_ACCESS_KEY"), "")),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("store: load aws config: %w", err)
+		return nil, fmt.Errorf("payloadstore: load aws config: %w", err)
 	}
 	client := s3.NewFromConfig(cfg, func(o *s3.Options) {
 		o.BaseEndpoint = aws.String(fmt.Sprintf("https://%s.r2.cloudflarestorage.com", accountID))
@@ -73,7 +73,7 @@ func (r *R2) Put(ctx context.Context, key string, body []byte) error {
 		Body:   bytes.NewReader(body),
 	})
 	if err != nil {
-		return fmt.Errorf("store: put %s: %w", key, err)
+		return fmt.Errorf("payloadstore: put %s: %w", key, err)
 	}
 	return nil
 }

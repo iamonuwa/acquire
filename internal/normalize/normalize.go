@@ -8,7 +8,7 @@ import (
 	"os/exec"
 	"regexp"
 
-	"gitlab.com/cail-health/cail-acquire/internal/config"
+	"gitlab.com/cail-health/cail-acquire/internal/polltable"
 )
 
 const pdftotextBin = "pdftotext"
@@ -38,11 +38,11 @@ func PDF(ctx context.Context, raw []byte) ([]byte, error) {
 }
 
 // Apply runs the normalizer named by kind.
-func Apply(ctx context.Context, kind config.Normalize, raw []byte) ([]byte, error) {
+func Apply(ctx context.Context, kind polltable.Normalize, raw []byte) ([]byte, error) {
 	switch kind {
-	case config.NormalizePDF:
+	case polltable.NormalizePDF:
 		return PDF(ctx, raw)
-	case config.NormalizeZipMembers:
+	case polltable.NormalizeZipMembers:
 		return nil, fmt.Errorf("normalize: zip_members not implemented yet")
 	default:
 		return nil, fmt.Errorf("normalize: unknown normalizer %q", kind)
@@ -51,16 +51,16 @@ func Apply(ctx context.Context, kind config.Normalize, raw []byte) ([]byte, erro
 
 // Fingerprint returns the tool+version that produced the hash, e.g.
 // "pdftotext-24.02.0", captured by running the tool.
-func Fingerprint(ctx context.Context, kind config.Normalize) (string, error) {
+func Fingerprint(ctx context.Context, kind polltable.Normalize) (string, error) {
 	switch kind {
-	case config.NormalizePDF:
+	case polltable.NormalizePDF:
 		out, _ := exec.CommandContext(ctx, pdftotextBin, "-v").CombinedOutput()
 		m := pdftotextVersionRE.FindSubmatch(out)
 		if m == nil {
 			return "", fmt.Errorf("normalize: cannot parse pdftotext version from %q", out)
 		}
 		return "pdftotext-" + string(m[1]), nil
-	case config.NormalizeZipMembers:
+	case polltable.NormalizeZipMembers:
 		return "", fmt.Errorf("normalize: fingerprint for zip_members not implemented yet")
 	default:
 		return "", fmt.Errorf("normalize: unknown normalizer %q", kind)

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"gitlab.com/cail-health/cail-acquire/internal/config"
+	"gitlab.com/cail-health/cail-acquire/internal/polltable"
 )
 
 // makeTestPDF builds a minimal single-page PDF containing text, so no binary
@@ -79,7 +79,7 @@ func TestPDF_InvalidInput(t *testing.T) {
 
 func TestFingerprint(t *testing.T) {
 	requirePdftotext(t)
-	fp, err := Fingerprint(context.Background(), config.NormalizePDF)
+	fp, err := Fingerprint(context.Background(), polltable.NormalizePDF)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,10 +89,10 @@ func TestFingerprint(t *testing.T) {
 }
 
 func TestApply_Dispatch(t *testing.T) {
-	if _, err := Apply(context.Background(), config.NormalizeZipMembers, nil); err == nil {
+	if _, err := Apply(context.Background(), polltable.NormalizeZipMembers, nil); err == nil {
 		t.Error("zip_members should be unimplemented")
 	}
-	if _, err := Apply(context.Background(), config.Normalize("bogus"), nil); err == nil {
+	if _, err := Apply(context.Background(), polltable.Normalize("bogus"), nil); err == nil {
 		t.Error("unknown normalizer should error")
 	}
 }

@@ -1,5 +1,5 @@
-// Package gate is the PHI hard stop that fires before any write.
-package gate
+// Package phigate is the PHI hard stop that fires before any write.
+package phigate
 
 // Result is the outcome of a PHI scan.
 type Result struct {

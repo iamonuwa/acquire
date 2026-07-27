@@ -5,11 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"gitlab.com/cail-health/cail-acquire/internal/config"
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
+	"gitlab.com/cail-health/cail-acquire/internal/polltable"
 )
 
-var _ config.ManifestIndex = (*manifest.Manifest)(nil)
+var _ polltable.ManifestIndex = (*manifest.Manifest)(nil)
 
 const sample = `- id: nlpdp-sa-criteria
   jurisdiction: NL
@@ -108,7 +108,7 @@ func TestCrossValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	tbl, err := config.Load([]byte(`sources:
+	tbl, err := polltable.Load([]byte(`sources:
   - id: nlpdp-sa-criteria
     jurisdiction: NL
     publisher: p

@@ -11,13 +11,13 @@ import (
 	"time"
 
 	polldata "gitlab.com/cail-health/cail-acquire/config"
-	"gitlab.com/cail-health/cail-acquire/internal/config"
 	"gitlab.com/cail-health/cail-acquire/internal/fetch"
-	"gitlab.com/cail-health/cail-acquire/internal/gate"
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
 	"gitlab.com/cail-health/cail-acquire/internal/normalize"
+	"gitlab.com/cail-health/cail-acquire/internal/payloadstore"
+	"gitlab.com/cail-health/cail-acquire/internal/phigate"
+	"gitlab.com/cail-health/cail-acquire/internal/polltable"
 	"gitlab.com/cail-health/cail-acquire/internal/runlog"
-	"gitlab.com/cail-health/cail-acquire/internal/store"
 )
 
 // Exit codes, aggregated across sources with highest severity winning.
@@ -92,7 +92,7 @@ func runPoll(args []string) int {
 		}
 		raw = b
 	}
-	table, err := config.Load(raw)
+	table, err := polltable.Load(raw)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		return exitConfig
@@ -113,13 +113,13 @@ func runPoll(args []string) int {
 
 	// Assert R2 secrets and build the store before any network call.
 	// --dry-run never writes, so it needs no credentials.
-	var st store.Store
+	var st payloadstore.Store
 	if !*dryRun {
-		if err := store.RequireSecrets(); err != nil {
+		if err := payloadstore.RequireSecrets(); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return exitConfig
 		}
-		r2, err := store.NewR2(ctx)
+		r2, err := payloadstore.NewR2(ctx)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return exitConfig
@@ -149,13 +149,13 @@ func runPoll(args []string) int {
 	return exit
 }
 
-func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, st store.Store, manifestPath, runlogPath string, src *config.Source, dryRun bool) int {
+func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, st payloadstore.Store, manifestPath, runlogPath string, src *polltable.Source, dryRun bool) int {
 	indexURL, err := man.IndexURL(src.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch
 	}
-	if src.Normalize == config.NormalizePDF {
+	if src.Normalize == polltable.NormalizePDF {
 		if err := normalize.AssertAvailable(); err != nil {
 			fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 			return exitFetch
@@ -247,7 +247,7 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 	}
 
 	// PHI gate before any write. Placeholder for now.
-	if res := gate.Check(text); res.Hit {
+	if res := phigate.Check(text); res.Hit {
 		fmt.Fprintf(os.Stderr, "[%s] PHI gate fired: %s\n", src.ID, res.Reason)
 		return exitPHI
 	}
@@ -257,11 +257,11 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 	}
 
 	// R2 first: content-addressed orphans are harmless. Two objects.
-	if err := st.Put(ctx, store.RawKey(src.ID, rawHash), resp.Body); err != nil {
+	if err := st.Put(ctx, payloadstore.RawKey(src.ID, rawHash), resp.Body); err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch
 	}
-	if err := st.Put(ctx, store.NormKey(src.ID, normHash), text); err != nil {
+	if err := st.Put(ctx, payloadstore.NormKey(src.ID, normHash), text); err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch
 	}

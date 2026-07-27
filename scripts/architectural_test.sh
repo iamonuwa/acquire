@@ -11,7 +11,7 @@
 #   config/sources.poll.yaml   the poll row
 #   internal/fetch/            at most ONE new strategy file
 #   internal/normalize/        at most ONE new normalizer file
-#   internal/gate/             jurisdiction PHI patterns
+#   internal/phigate/             jurisdiction PHI patterns
 #   testdata/                  fixtures
 #
 # Anything else is a design failure and should be reported, not worked around.
@@ -50,7 +50,7 @@ while IFS= read -r f; do
       ;;
     testdata/*)
       ;;
-    internal/gate/*)
+    internal/phigate/*)
       ;;
     internal/fetch/*)
       if ! existed_at_base "$f"; then

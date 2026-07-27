@@ -1,5 +1,5 @@
-// Package config loads and validates the poll table.
-package config
+// Package polltable loads and validates the poll table.
+package polltable
 
 import (
 	"errors"
@@ -95,7 +95,7 @@ type PollTable struct {
 func Load(raw []byte) (*PollTable, error) {
 	var t PollTable
 	if err := yaml.Unmarshal(raw, &t); err != nil {
-		return nil, fmt.Errorf("config: parse poll table: %w", err)
+		return nil, fmt.Errorf("polltable: parse poll table: %w", err)
 	}
 	if err := t.ValidateStandalone(); err != nil {
 		return nil, err
@@ -110,10 +110,10 @@ func (t *PollTable) ValidateStandalone() error {
 	for i := range t.Sources {
 		s := &t.Sources[i]
 		if s.ID == "" {
-			return fmt.Errorf("config: source #%d has no id", i)
+			return fmt.Errorf("polltable: source #%d has no id", i)
 		}
 		if seen[s.ID] {
-			return fmt.Errorf("config: duplicate source id %q", s.ID)
+			return fmt.Errorf("polltable: duplicate source id %q", s.ID)
 		}
 		seen[s.ID] = true
 
@@ -133,39 +133,39 @@ func (t *PollTable) ValidateStandalone() error {
 func validateStub(s *Source) error {
 	if s.Fetch != "" || s.Normalize != "" || s.Enabled ||
 		s.PollInterval != 0 || s.Scrape.LinkScope != "" || s.Scrape.AnchorPattern != "" {
-		return fmt.Errorf("config: unresolved source %q must carry only id + state", s.ID)
+		return fmt.Errorf("polltable: unresolved source %q must carry only id + state", s.ID)
 	}
 	return nil
 }
 
 func validateFullRow(s *Source) error {
 	if s.Jurisdiction == "" || s.Publisher == "" {
-		return fmt.Errorf("config: source %q missing jurisdiction or publisher", s.ID)
+		return fmt.Errorf("polltable: source %q missing jurisdiction or publisher", s.ID)
 	}
 	switch s.Fetch {
 	case FetchScrapeAnchor, FetchArchive:
 	case "":
-		return fmt.Errorf("config: source %q has no fetch strategy", s.ID)
+		return fmt.Errorf("polltable: source %q has no fetch strategy", s.ID)
 	default:
-		return fmt.Errorf("config: source %q unknown fetch %q", s.ID, s.Fetch)
+		return fmt.Errorf("polltable: source %q unknown fetch %q", s.ID, s.Fetch)
 	}
 	switch s.Normalize {
 	case NormalizePDF, NormalizeZipMembers:
 	case "":
-		return fmt.Errorf("config: source %q has no normalizer", s.ID)
+		return fmt.Errorf("polltable: source %q has no normalizer", s.ID)
 	default:
-		return fmt.Errorf("config: source %q unknown normalize %q", s.ID, s.Normalize)
+		return fmt.Errorf("polltable: source %q unknown normalize %q", s.ID, s.Normalize)
 	}
 	if s.Fetch == FetchScrapeAnchor {
 		if s.Scrape.LinkScope == "" {
-			return fmt.Errorf("config: scrape_anchor source %q has empty link_scope", s.ID)
+			return fmt.Errorf("polltable: scrape_anchor source %q has empty link_scope", s.ID)
 		}
 		if s.Scrape.AnchorPattern == "" {
-			return fmt.Errorf("config: scrape_anchor source %q has empty anchor_pattern", s.ID)
+			return fmt.Errorf("polltable: scrape_anchor source %q has empty anchor_pattern", s.ID)
 		}
 		re, err := regexp.Compile(s.Scrape.AnchorPattern)
 		if err != nil {
-			return fmt.Errorf("config: source %q anchor_pattern does not compile: %w", s.ID, err)
+			return fmt.Errorf("polltable: source %q anchor_pattern does not compile: %w", s.ID, err)
 		}
 		s.Scrape.anchorRE = re
 	}
@@ -182,7 +182,7 @@ type ManifestIndex interface {
 // active sources.yaml entry with no poll row.
 func (t *PollTable) ValidateAgainstManifest(m ManifestIndex) error {
 	if m == nil {
-		return errors.New("config: nil manifest index")
+		return errors.New("polltable: nil manifest index")
 	}
 	pollIDs := make(map[string]bool, len(t.Sources))
 	for i := range t.Sources {
@@ -192,12 +192,12 @@ func (t *PollTable) ValidateAgainstManifest(m ManifestIndex) error {
 			continue
 		}
 		if !m.Has(s.ID) {
-			return fmt.Errorf("config: poll row %q has no sources.yaml entry", s.ID)
+			return fmt.Errorf("polltable: poll row %q has no sources.yaml entry", s.ID)
 		}
 	}
 	for _, id := range m.ActiveIDs() {
 		if !pollIDs[id] {
-			return fmt.Errorf("config: sources.yaml active entry %q has no poll row", id)
+			return fmt.Errorf("polltable: sources.yaml active entry %q has no poll row", id)
 		}
 	}
 	return nil

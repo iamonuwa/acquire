@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"github.com/PuerkitoBio/goquery"
-	"gitlab.com/cail-health/cail-acquire/internal/config"
+	"gitlab.com/cail-health/cail-acquire/internal/polltable"
 )
 
 // AnchorMatch is hop-1's result. AnchorText (e.g. "Last updated on ...") is
@@ -27,7 +27,7 @@ type ScrapeSpec struct {
 }
 
 // SpecFor builds a ScrapeSpec from a validated source row.
-func SpecFor(s *config.Source) ScrapeSpec {
+func SpecFor(s *polltable.Source) ScrapeSpec {
 	return ScrapeSpec{LinkScope: s.Scrape.LinkScope, AnchorRE: s.Scrape.AnchorRE()}
 }
 
@@ -39,12 +39,12 @@ type Strategy interface {
 // ScrapeAnchor implements the scrape_anchor strategy (hop 1 here).
 type ScrapeAnchor struct{}
 
-var registry = map[config.Fetch]Strategy{
-	config.FetchScrapeAnchor: ScrapeAnchor{},
+var registry = map[polltable.Fetch]Strategy{
+	polltable.FetchScrapeAnchor: ScrapeAnchor{},
 }
 
 // StrategyFor returns the fetch strategy for f, or a fatal error if none is registered.
-func StrategyFor(f config.Fetch) (Strategy, error) {
+func StrategyFor(f polltable.Fetch) (Strategy, error) {
 	s, ok := registry[f]
 	if !ok {
 		return nil, fmt.Errorf("fetch: no strategy for %q (unknown or not yet implemented)", f)
