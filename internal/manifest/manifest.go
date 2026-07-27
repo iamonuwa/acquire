@@ -15,16 +15,17 @@ const (
 
 // Entry is one sources.yaml record.
 type Entry struct {
-	ID             string `yaml:"id"`
-	Jurisdiction   string `yaml:"jurisdiction"`
-	Publisher      string `yaml:"publisher"`
-	URL            string `yaml:"url"`
-	URLKind        string `yaml:"url_kind"`
-	LastPayloadURL string `yaml:"last_payload_url"`
-	Licence        string `yaml:"licence"`
-	RawHash        string `yaml:"raw_hash"`
-	NormalizedHash string `yaml:"normalized_hash"`
-	State          string `yaml:"state"`
+	ID               string `yaml:"id"`
+	Jurisdiction     string `yaml:"jurisdiction"`
+	Publisher        string `yaml:"publisher"`
+	URL              string `yaml:"url"`
+	URLKind          string `yaml:"url_kind"`
+	PayloadConfirmed bool   `yaml:"payload_confirmed"`
+	LastPayloadURL   string `yaml:"last_payload_url"`
+	Licence          string `yaml:"licence"`
+	RawHash          string `yaml:"raw_hash"`
+	NormalizedHash   string `yaml:"normalized_hash"`
+	State            string `yaml:"state"`
 }
 
 // Manifest is the parsed sources.yaml.
