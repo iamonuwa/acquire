@@ -115,7 +115,7 @@ func guardWritePath(path string) error {
 	clean := filepath.ToSlash(filepath.Clean(path))
 	segs := strings.Split(clean, "/")
 	for _, s := range segs {
-		if s == "knowledge_base" || s == ".." {
+		if s == "knowledge_base" {
 			return fmt.Errorf("manifest: refusing to write outside the boundary: %s", path)
 		}
 	}

@@ -53,6 +53,23 @@ func TestUpdateEntry_WritesFieldsAndKeepsComment(t *testing.T) {
 	}
 }
 
+func TestUpdateEntry_AllowsParentRelativePath(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "sources.yaml"), []byte(withComment), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(filepath.Join(dir, "sub"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A path with a literal ".." that resolves to an allowed sources.yaml, as in
+	// the real --manifest=../rules/sources.yaml usage.
+	viaParent := filepath.Join(dir, "sub") + "/../sources.yaml"
+	confirmed := true
+	if err := manifest.UpdateEntry(viaParent, "nlpdp-sa-criteria", manifest.Update{PayloadConfirmed: &confirmed}); err != nil {
+		t.Fatalf("legit ..-containing path rejected: %v", err)
+	}
+}
+
 func TestUpdateEntry_WriteBoundary(t *testing.T) {
 	dir := t.TempDir()
 	deny := []string{
