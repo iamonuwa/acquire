@@ -31,7 +31,7 @@ func TestLoad_EmbeddedTableIsValid(t *testing.T) {
 		t.Error("nl anchor pattern not compiled")
 	}
 	if dpd := byID["hc-dpd-allfiles"]; dpd == nil || dpd.Enabled {
-		t.Error("dpd row should exist and be disabled until milestone 7")
+		t.Error("dpd row should exist and be disabled for now")
 	}
 	if ab := byID["ab-idbl"]; ab == nil || !ab.IsUnresolved() {
 		t.Error("ab-idbl should be an unresolved stub")

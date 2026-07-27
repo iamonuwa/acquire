@@ -1,7 +1,0 @@
-# /etc/systemd/system/cail-acquire-alert.service   (NO OnFailure= here)
-[Unit]
-Description=Alert on cail-acquire failure
-
-[Service]
-Type=oneshot
-ExecStart=/usr/local/bin/cail-alert.sh

@@ -11,7 +11,7 @@ import (
 )
 
 // makeTestPDF builds a minimal single-page PDF containing text, so no binary
-// fixture is committed (rule 9). text must not contain PDF-special chars.
+// fixture is committed. text must not contain PDF-special chars.
 func makeTestPDF(text string) []byte {
 	var buf bytes.Buffer
 	offsets := make([]int, 6)

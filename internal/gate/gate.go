@@ -9,9 +9,8 @@ type Result struct {
 
 // Check scans normalized text for PHI.
 //
-// PLACEHOLDER: always reports no hit. The real SIN (Luhn) and NL MCP detectors
-// land at milestone 6. The call site is wired now so the gate runs before any
-// store write without reordering the pipeline later (CLAUDE rules 5, 6).
+// PLACEHOLDER: always reports no hit. The real SIN and NL MCP detectors come
+// later; the call site is wired now so the gate runs before any store write.
 func Check(text []byte) Result {
 	return Result{}
 }

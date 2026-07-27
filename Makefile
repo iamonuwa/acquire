@@ -1,42 +1,39 @@
 # cail-acquire — build and test targets.
-# Dev toolchain is Go 1.23.x (see go.mod). The release binary is pinned to the
-# production toolchain via build-linux (SPEC §9 / CLAUDE toolchain table).
 
 STATICCHECK_VERSION := 2024.1.1
 BIN := bin/cail-acquire
+GOARCH ?= amd64
+VERSION ?= dev
 
 .PHONY: build build-linux test integration vet staticcheck lint regen-fixtures clean
 
 build:
 	go build -o $(BIN) ./cmd/cail-acquire
 
-# Release build for the droplet (SPEC §9.2): static, linux, pinned toolchain.
-# GOTOOLCHAIN forces the production Go version; requires it to be available on
-# the build box. See CLAUDE.md toolchain pin (currently flagged for reconcile).
+# Static Linux binary for the deploy host; cross-compiles from any machine.
 build-linux:
-	GOTOOLCHAIN=go1.26.5 CGO_ENABLED=0 GOOS=linux go build -o $(BIN) ./cmd/cail-acquire
+	CGO_ENABLED=0 GOOS=linux GOARCH=$(GOARCH) go build -trimpath \
+		-ldflags "-s -w -X gitlab.com/cail-health/cail-acquire/internal/fetch.Version=$(VERSION)" \
+		-o $(BIN)-linux-$(GOARCH) ./cmd/cail-acquire
 
-# Unit tests only — no network (SPEC §8). The integration tag is excluded.
+# Unit tests only; the integration tag is excluded.
 test:
 	go test ./...
 
-# Integration tests (SPEC §8): live fetches, behind the `integration` build tag.
-# Manual / weekly CI only, never in the normal test run.
+# Integration tests: live fetches, behind the integration build tag.
 integration:
 	go test -tags=integration ./...
 
 vet:
 	go vet ./...
 
-# staticcheck via `go run` at a pinned version — no global install, not in go.mod.
 staticcheck:
 	go run honnef.co/go/tools/cmd/staticcheck@$(STATICCHECK_VERSION) ./...
 
 lint: vet staticcheck
 
-# Capture the NL index page into the golden fixture (SPEC §8). Human-reviewed
-# before commit (CLAUDE rule 13). Refreshes only testdata/nlpdp_index_happy.html;
-# the synthetic zero/multi/relative fixtures are never overwritten.
+# Capture the live NL index page into the golden fixture for human review.
+# Only refreshes testdata/nlpdp_index_happy.html; the synthetic fixtures are left alone.
 regen-fixtures:
 	go test -tags=integration -run TestCaptureNLIndex ./internal/fetch
 

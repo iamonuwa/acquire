@@ -16,7 +16,7 @@ type Fetch string
 const (
 	// FetchScrapeAnchor discovers the payload URL by scraping the index page.
 	FetchScrapeAnchor Fetch = "scrape_anchor"
-	// FetchArchive downloads and extracts an archive (milestone 7).
+	// FetchArchive downloads and extracts an archive (not built yet).
 	FetchArchive Fetch = "archive"
 )
 
@@ -26,7 +26,7 @@ type Normalize string
 const (
 	// NormalizePDF extracts text with pdftotext -layout.
 	NormalizePDF Normalize = "pdf"
-	// NormalizeZipMembers concatenates ZIP member text (milestone 7).
+	// NormalizeZipMembers concatenates ZIP member text (not built yet).
 	NormalizeZipMembers Normalize = "zip_members"
 )
 

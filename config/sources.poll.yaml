@@ -1,10 +1,6 @@
-# Poll table for cail-acquire (SPEC §4.1).
-# Two sources in scope (CLAUDE.md): nlpdp-sa-criteria, hc-dpd-allfiles.
-# Alberta iDBL and RAMQ are carried as unresolved stubs so CI counts them;
-# they are not poll targets and carry no URL.
-#
-# strip_rules stays empty until the soak produces observations (CLAUDE rule 17):
-# every entry must carry a comment naming the observed false positive and its date.
+# Poll table. Two sources: nlpdp-sa-criteria and hc-dpd-allfiles.
+# Alberta iDBL and RAMQ are unresolved stubs — not poll targets, no URL.
+# strip_rules stays empty until the soak; each entry names the false positive it fixes and the date.
 sources:
   - id: nlpdp-sa-criteria
     jurisdiction: NL

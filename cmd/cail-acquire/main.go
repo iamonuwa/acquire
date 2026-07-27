@@ -1,5 +1,4 @@
 // Command cail-acquire polls a fixed table of Canadian payer source URLs.
-// Milestone 2 implements only poll's resolve-and-report path.
 package main
 
 import (
@@ -70,7 +69,7 @@ func runPoll(args []string) int {
 	fs := flag.NewFlagSet("poll", flag.ContinueOnError)
 	source := fs.String("source", "", "only poll this source id (default: all enabled)")
 	dryRun := fs.Bool("dry-run", false, "resolve and report without writing anywhere")
-	fs.Bool("force", false, "ignore poll_interval (no effect until milestone 10)")
+	fs.Bool("force", false, "ignore poll_interval (not yet enforced)")
 	configPath := fs.String("config", "", "path to sources.poll.yaml (default: embedded table)")
 	manifestPath := fs.String("manifest", defaultManifestPath, "path to cail-rules sources.yaml")
 	if err := fs.Parse(args); err != nil {
@@ -105,8 +104,8 @@ func runPoll(args []string) int {
 	client := fetch.NewClient()
 	ctx := context.Background()
 
-	// Assert R2 secrets and build the store before any network call (rule 11).
-	// --dry-run never writes, so it needs no credentials (§9.1).
+	// Assert R2 secrets and build the store before any network call.
+	// --dry-run never writes, so it needs no credentials.
 	var st store.Store
 	if !*dryRun {
 		if err := store.RequireSecrets(); err != nil {
@@ -198,7 +197,7 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		return exitOK
 	}
 
-	// PHI gate before any write (rules 5, 6). Placeholder until milestone 6.
+	// PHI gate before any write. Placeholder for now.
 	if res := gate.Check(text); res.Hit {
 		fmt.Fprintf(os.Stderr, "[%s] PHI gate fired: %s\n", src.ID, res.Reason)
 		return exitPHI
@@ -208,7 +207,7 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		return exitOK
 	}
 
-	// R2 first (rule 6): content-addressed orphans are harmless. Two objects.
+	// R2 first: content-addressed orphans are harmless. Two objects.
 	if err := st.Put(ctx, store.RawKey(src.ID, rawHash), resp.Body); err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch

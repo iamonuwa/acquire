@@ -7,7 +7,11 @@ OnFailure=cail-acquire-alert.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/cail-acquire
+User=cail
+Group=cail
+ExecStart=/usr/local/bin/cail-acquire poll
+# exit 10 means a change was found — that's normal, not a failure
+SuccessExitStatus=10
 ExecStartPost=/usr/bin/curl -fsS --retry 3 https://hc-ping.com/<uuid>
 EnvironmentFile=/etc/cail-acquire/env
 TimeoutStartSec=300

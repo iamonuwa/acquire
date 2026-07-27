@@ -40,7 +40,7 @@ func Apply(ctx context.Context, kind config.Normalize, raw []byte) ([]byte, erro
 	case config.NormalizePDF:
 		return PDF(ctx, raw)
 	case config.NormalizeZipMembers:
-		return nil, fmt.Errorf("normalize: zip_members not implemented until milestone 7")
+		return nil, fmt.Errorf("normalize: zip_members not implemented yet")
 	default:
 		return nil, fmt.Errorf("normalize: unknown normalizer %q", kind)
 	}

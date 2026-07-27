@@ -1,0 +1,30 @@
+# Seed manifest for the soak. Hashes are UNVERIFIED so the first run sets the baseline.
+- id: nlpdp-sa-criteria
+  jurisdiction: NL
+  publisher: NL Health and Community Services
+  url: https://www.gov.nl.ca/hcs/prescription/covered-specialauthdrugs/
+  url_kind: index
+  url_observed_on: https://www.gov.nl.ca/hcs/prescription/
+  url_observed_date: 2026-07-27
+  payload_confirmed: false
+  last_payload_url: https://www.gov.nl.ca/hcs/files/Criteria-July-2026.pdf
+  licence: all-rights-reserved
+  licence_ref: https://www.gov.nl.ca/disclaimer/
+  raw_hash: UNVERIFIED
+  normalized_hash: UNVERIFIED
+  state: active
+
+- id: hc-dpd-allfiles
+  jurisdiction: CA
+  publisher: Health Canada
+  url: https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database/what-data-extract-drug-product-database.html
+  url_kind: index
+  url_observed_on: https://www.canada.ca/en/health-canada/services/drugs-health-products/drug-products/drug-product-database.html
+  url_observed_date: 2026-07-27
+  payload_confirmed: false
+  last_payload_url: https://www.canada.ca/content/dam/hc-sc/documents/services/drug-product-database/allfiles.zip
+  licence: ogl-canada
+  licence_ref: https://healthycanadians.gc.ca/important-eng.php#a6
+  raw_hash: UNVERIFIED
+  normalized_hash: UNVERIFIED
+  state: active

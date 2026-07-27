@@ -109,8 +109,7 @@ func boolStr(b bool) string {
 }
 
 // guardWritePath enforces the cail-rules write boundary: only sources.yaml and
-// files under reports/ or catalogue/ may be written (SPEC §2.1). Shared with
-// vcs at milestone 9.
+// files under reports/ or catalogue/ may be written.
 func guardWritePath(path string) error {
 	clean := filepath.ToSlash(filepath.Clean(path))
 	segs := strings.Split(clean, "/")

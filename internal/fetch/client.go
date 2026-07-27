@@ -1,5 +1,5 @@
-// Package fetch retrieves source payloads. Milestone 2 implements scrape_anchor
-// hop 1 (URL resolution); the payload GET is milestone 3.
+// Package fetch retrieves source payloads: it resolves the payload URL from an
+// index page, then fetches it.
 package fetch
 
 import (
@@ -102,7 +102,7 @@ type Response struct {
 }
 
 // Fetch issues a GET with retry/backoff and returns the body plus response
-// metadata (SPEC §5 step 4).
+// metadata.
 func (c *Client) Fetch(ctx context.Context, rawURL string) (*Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
