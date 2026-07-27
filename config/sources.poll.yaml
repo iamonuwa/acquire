@@ -1,0 +1,38 @@
+# Poll table for cail-acquire (SPEC §4.1).
+# Two sources in scope (CLAUDE.md): nlpdp-sa-criteria, hc-dpd-allfiles.
+# Alberta iDBL and RAMQ are carried as unresolved stubs so CI counts them;
+# they are not poll targets and carry no URL.
+#
+# strip_rules stays empty until the soak produces observations (CLAUDE rule 17):
+# every entry must carry a comment naming the observed false positive and its date.
+sources:
+  - id: nlpdp-sa-criteria
+    jurisdiction: NL
+    publisher: NL Health and Community Services
+    fetch: scrape_anchor
+    normalize: pdf
+    poll_interval: 24h
+    staleness_alarm_days: 60
+    enabled: true
+    scrape:
+      link_scope: 'a[href$=".pdf"]'
+      anchor_pattern: 'Criteria-[A-Za-z]+-\d{4}\.pdf$'
+    strip_rules: []
+
+  - id: hc-dpd-allfiles
+    jurisdiction: CA
+    publisher: Health Canada
+    fetch: scrape_anchor
+    normalize: zip_members
+    poll_interval: 168h
+    staleness_alarm_days: 60
+    enabled: false
+    scrape:
+      link_scope: 'a[href$=".zip"]'
+      anchor_pattern: 'allfiles\.zip$'
+    strip_rules: []
+
+  - id: ab-idbl
+    state: unresolved
+  - id: qc-ramq
+    state: unresolved
