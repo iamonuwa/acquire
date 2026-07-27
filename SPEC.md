@@ -4,7 +4,7 @@ Build specification for `cail-acquire`. Scope: two sources, NLPDP first, Health 
 
 **Authority.** `DECISIONS.md` in `cail-rules` is the locked decision record. This file is the build document that implements it. Where the two disagree, `DECISIONS.md` wins and this file is wrong. Section citations below refer to `DECISIONS.md` unless stated otherwise.
 
-**Status as of 2026-07-27.** All corrections identified in the source verification pass are now applied to `DECISIONS.md` (NLPDP host, DPD extract date, DPD product-role/biosimilar mechanism). This file contains no outstanding corrections. Milestone 1 is **not yet complete**: its acceptance is "corrections committed," and `cail-rules` is not yet under version control, so the corrections are applied but uncommitted.
+**Status as of 2026-07-27.** All corrections identified in the source verification pass are now applied to `DECISIONS.md` (NLPDP host, DPD extract date, DPD product-role/biosimilar mechanism) and committed to `cail-rules`. This file contains no outstanding corrections. Milestone 1 is complete.
 
 Confidence markers: VERIFIED means observed on the publisher's own live page 2026-07-27. INFERENCE means reasoned, with the reasoning stated. UNVERIFIED means not confirmed, and no value has been substituted.
 
@@ -31,9 +31,9 @@ cail-acquire/
   go.mod
   Makefile
   cmd/
-    acquire/main.go
+    cail-acquire/main.go
   config/
-    sources.poll.yaml
+    sources.poll.yaml        poll table data (embedded via config/embed.go)
   internal/
     config/                  poll table load, validation
     manifest/                sources.yaml read/write against the cail-rules working copy

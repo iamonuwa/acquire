@@ -149,7 +149,7 @@ Aggregate across sources, highest severity wins. Precedence 40, 30, 20, 10, 0.
 
 Milestone 2 of 12. Full table and acceptance criteria in `CAIL-ACQUIRE-SPEC.md` §12.
 
-- **1** ⚠️ `DECISIONS.md` corrections applied but **not yet committed** (`cail-rules` not under version control)
+- **1** ✅ `DECISIONS.md` corrections committed (`cail-rules` @ 98b6b54)
 - **2** `scrape_anchor` resolves the NL criteria URL ← next
 - **3** Fetch, `pdftotext -layout`, stable hash
 - **4** R2 store

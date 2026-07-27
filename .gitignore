@@ -8,7 +8,7 @@
 # Compiled binary output for this service
 /acquire
 /cail-acquire
-/cmd/acquire/acquire
+/cmd/cail-acquire/cail-acquire
 
 # Test binary, built with `go test -c`
 *.test
