@@ -12,6 +12,7 @@
   licence_ref: https://www.gov.nl.ca/disclaimer/
   raw_hash: UNVERIFIED
   normalized_hash: UNVERIFIED
+  normalizer_fingerprint: UNVERIFIED
   state: active
 
 - id: hc-dpd-allfiles
@@ -27,4 +28,5 @@
   licence_ref: https://healthycanadians.gc.ca/important-eng.php#a6
   raw_hash: UNVERIFIED
   normalized_hash: UNVERIFIED
+  normalizer_fingerprint: UNVERIFIED
   state: active

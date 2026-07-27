@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	polldata "gitlab.com/cail-health/cail-acquire/config"
 	"gitlab.com/cail-health/cail-acquire/internal/config"
@@ -15,20 +16,25 @@ import (
 	"gitlab.com/cail-health/cail-acquire/internal/gate"
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
 	"gitlab.com/cail-health/cail-acquire/internal/normalize"
+	"gitlab.com/cail-health/cail-acquire/internal/runlog"
 	"gitlab.com/cail-health/cail-acquire/internal/store"
 )
 
 // Exit codes, aggregated across sources with highest severity winning.
 const (
-	exitOK     = 0
-	exitChange = 10
-	exitFetch  = 20
-	exitPHI    = 30
-	exitConfig = 40
+	exitOK          = 0
+	exitChange      = 10
+	exitFetch       = 20
+	exitPHI         = 30
+	exitConfig      = 40
+	exitFingerprint = 50
 )
 
 // defaultManifestPath is the droplet's cail-rules working copy.
 const defaultManifestPath = "/var/lib/cail-acquire/cail-rules/sources.yaml"
+
+// defaultRunlogPath is the append-only run log on the droplet.
+const defaultRunlogPath = "/var/lib/cail-acquire/runlog.jsonl"
 
 func main() { os.Exit(dispatch(os.Args[1:])) }
 
@@ -72,6 +78,7 @@ func runPoll(args []string) int {
 	fs.Bool("force", false, "ignore poll_interval (not yet enforced)")
 	configPath := fs.String("config", "", "path to sources.poll.yaml (default: embedded table)")
 	manifestPath := fs.String("manifest", defaultManifestPath, "path to cail-rules sources.yaml")
+	runlogPath := fs.String("runlog", defaultRunlogPath, "path to the run log")
 	if err := fs.Parse(args); err != nil {
 		return exitConfig
 	}
@@ -131,7 +138,7 @@ func runPoll(args []string) int {
 			continue
 		}
 		polled++
-		if code := pollSource(ctx, client, man, st, *manifestPath, src, *dryRun); code > exit {
+		if code := pollSource(ctx, client, man, st, *manifestPath, *runlogPath, src, *dryRun); code > exit {
 			exit = code
 		}
 	}
@@ -142,7 +149,7 @@ func runPoll(args []string) int {
 	return exit
 }
 
-func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, st store.Store, manifestPath string, src *config.Source, dryRun bool) int {
+func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, st store.Store, manifestPath, runlogPath string, src *config.Source, dryRun bool) int {
 	indexURL, err := man.IndexURL(src.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
@@ -177,10 +184,24 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		return exitFetch
 	}
 
+	fp, err := normalize.Fingerprint(ctx, src.Normalize)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
+		return exitFetch
+	}
+
 	rawHash := sha256Hex(resp.Body)
 	normHash := sha256Hex(text)
-
 	entry, _ := man.Entry(src.ID)
+
+	// A poppler change makes every hash in the run untrustworthy, so a
+	// fingerprint mismatch halts before any write and is never a content change.
+	if entry != nil && isBaselined(entry.NormalizerFingerprint) && entry.NormalizerFingerprint != fp {
+		fmt.Fprintf(os.Stderr, "[%s] normalizer fingerprint mismatch: manifest=%q observed=%q\n",
+			src.ID, entry.NormalizerFingerprint, fp)
+		return exitFingerprint
+	}
+
 	changed := entry == nil || entry.NormalizedHash != normHash
 
 	prefix := ""
@@ -188,9 +209,37 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		prefix = "[dry-run] "
 	}
 	fmt.Printf("%s[%s] payload %s (%d bytes)\n", prefix, src.ID, m.URL, resp.ByteCount)
-	fmt.Printf("            normalized_hash %s change=%t\n", normHash, changed)
+	fmt.Printf("            normalized_hash %s change=%t fingerprint=%s\n", normHash, changed, fp)
 	if resp.LastModified != "" || resp.ETag != "" {
 		fmt.Printf("            last-modified=%q etag=%q\n", resp.LastModified, resp.ETag)
+	}
+
+	// Runlog records every run, including no-change days. --dry-run writes nowhere.
+	if !dryRun {
+		rec := runlog.Record{
+			TS:                    time.Now().UTC().Format(time.RFC3339),
+			SourceID:              src.ID,
+			HTTPStatus:            resp.StatusCode,
+			FinalURL:              resp.FinalURL.String(),
+			Bytes:                 resp.ByteCount,
+			LastModified:          resp.LastModified,
+			ETag:                  resp.ETag,
+			RawHash:               "sha256:" + rawHash,
+			NormalizedHash:        "sha256:" + normHash,
+			NormalizerFingerprint: fp,
+			Changed:               changed,
+		}
+		if err := runlog.Append(runlogPath, rec); err != nil {
+			fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
+			return exitFetch
+		}
+		if st != nil {
+			if lines, lerr := runlog.SourceLines(runlogPath, src.ID); lerr == nil {
+				if perr := st.Put(ctx, "runlog/"+src.ID+".jsonl", lines); perr != nil {
+					fmt.Fprintf(os.Stderr, "[%s] runlog mirror failed: %v\n", src.ID, perr)
+				}
+			}
+		}
 	}
 
 	if !changed {
@@ -220,15 +269,20 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 	confirmed := true
 	urlStr := m.URL.String()
 	if err := manifest.UpdateEntry(manifestPath, src.ID, manifest.Update{
-		PayloadConfirmed: &confirmed,
-		RawHash:          &rawHash,
-		NormalizedHash:   &normHash,
-		LastPayloadURL:   &urlStr,
+		PayloadConfirmed:      &confirmed,
+		RawHash:               &rawHash,
+		NormalizedHash:        &normHash,
+		NormalizerFingerprint: &fp,
+		LastPayloadURL:        &urlStr,
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch
 	}
 	return exitOK
+}
+
+func isBaselined(fp string) bool {
+	return fp != "" && fp != "UNVERIFIED"
 }
 
 func sha256Hex(b []byte) string {

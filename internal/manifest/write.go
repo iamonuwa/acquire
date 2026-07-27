@@ -12,10 +12,11 @@ import (
 
 // Update carries the provenance/hash fields the acquirer may write back.
 type Update struct {
-	PayloadConfirmed *bool
-	RawHash          *string
-	NormalizedHash   *string
-	LastPayloadURL   *string
+	PayloadConfirmed      *bool
+	RawHash               *string
+	NormalizedHash        *string
+	NormalizerFingerprint *string
+	LastPayloadURL        *string
 }
 
 // UpdateEntry rewrites only the given fields of one entry in sources.yaml,
@@ -55,6 +56,9 @@ func UpdateEntry(path, id string, u Update) error {
 	}
 	if u.NormalizedHash != nil {
 		setScalar(target, "normalized_hash", *u.NormalizedHash, "!!str")
+	}
+	if u.NormalizerFingerprint != nil {
+		setScalar(target, "normalizer_fingerprint", *u.NormalizerFingerprint, "!!str")
 	}
 	if u.LastPayloadURL != nil {
 		setScalar(target, "last_payload_url", *u.LastPayloadURL, "!!str")

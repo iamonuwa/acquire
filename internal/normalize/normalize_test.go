@@ -77,6 +77,17 @@ func TestPDF_InvalidInput(t *testing.T) {
 	}
 }
 
+func TestFingerprint(t *testing.T) {
+	requirePdftotext(t)
+	fp, err := Fingerprint(context.Background(), config.NormalizePDF)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(fp, "pdftotext-") {
+		t.Errorf("fingerprint = %q, want pdftotext-<version>", fp)
+	}
+}
+
 func TestApply_Dispatch(t *testing.T) {
 	if _, err := Apply(context.Background(), config.NormalizeZipMembers, nil); err == nil {
 		t.Error("zip_members should be unimplemented")

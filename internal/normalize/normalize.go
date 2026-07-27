@@ -6,11 +6,14 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"regexp"
 
 	"gitlab.com/cail-health/cail-acquire/internal/config"
 )
 
 const pdftotextBin = "pdftotext"
+
+var pdftotextVersionRE = regexp.MustCompile(`version\s+(\S+)`)
 
 // AssertAvailable checks that pdftotext is on PATH. Call at startup.
 func AssertAvailable() error {
@@ -43,5 +46,23 @@ func Apply(ctx context.Context, kind config.Normalize, raw []byte) ([]byte, erro
 		return nil, fmt.Errorf("normalize: zip_members not implemented yet")
 	default:
 		return nil, fmt.Errorf("normalize: unknown normalizer %q", kind)
+	}
+}
+
+// Fingerprint returns the tool+version that produced the hash, e.g.
+// "pdftotext-24.02.0", captured by running the tool.
+func Fingerprint(ctx context.Context, kind config.Normalize) (string, error) {
+	switch kind {
+	case config.NormalizePDF:
+		out, _ := exec.CommandContext(ctx, pdftotextBin, "-v").CombinedOutput()
+		m := pdftotextVersionRE.FindSubmatch(out)
+		if m == nil {
+			return "", fmt.Errorf("normalize: cannot parse pdftotext version from %q", out)
+		}
+		return "pdftotext-" + string(m[1]), nil
+	case config.NormalizeZipMembers:
+		return "", fmt.Errorf("normalize: fingerprint for zip_members not implemented yet")
+	default:
+		return "", fmt.Errorf("normalize: unknown normalizer %q", kind)
 	}
 }

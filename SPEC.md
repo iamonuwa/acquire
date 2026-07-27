@@ -241,14 +241,15 @@ Per source, per run:
 6. Compare fingerprint to `normalizer_fingerprint`. A mismatch halts the run before any write, exit 50. It is never treated as a content change.
 7. Apply `strip_rules`.
 8. Hash normalized text. Compare to `normalized_hash`.
-9. No change: update status, next source.
-10. **PHI gate on normalized text.** Hard stop for that source. Nothing written anywhere.
-11. R2 put raw, R2 put normalized.
-12. Semantic diff against previous normalized text, fetched from R2 by the prior hash.
-13. Branch, commit manifest update plus diff report, push, open MR.
-14. Publish status once, after all sources.
+9. Append to `runlog.jsonl` (§6.10). Unconditional, including no-change runs. This is the only durable record of a day on which nothing happened.
+10. No change: update status, next source.
+11. **PHI gate on normalized text.** Hard stop for that source. Nothing written anywhere.
+12. R2 put raw, R2 put normalized.
+13. Semantic diff against previous normalized text, fetched from R2 by the prior hash.
+14. Branch, commit manifest update plus diff report, push, open MR.
+15. Publish status once, after all sources.
 
-Ordering in 11 through 13 is fixed by §3 and is the crash-recovery mechanism. R2 first because content-addressed orphans are harmless. Git last because the manifest hash commit declares the change handled. Do not reorder.
+Ordering in 12 through 14 is fixed by §3 and is the crash-recovery mechanism. R2 first because content-addressed orphans are harmless. Git last because the manifest hash commit declares the change handled. Do not reorder.
 
 NL produces two independent change signals: payload URL change (monthly, expected) and content hash change. Either opens an MR. A URL change with no hash change means republication without content edit, which is worth knowing.
 
@@ -399,6 +400,28 @@ Built from run result plus manifest, published to R2, never committed (§1).
 ```
 
 Runs unconditionally, even after failures. A run that fails to publish status is worse than one that fails to fetch, because the failure becomes invisible.
+
+### 6.10 runlog
+
+Append-only record of every fetch attempt, one line per source per run. JSONL.
+
+```json
+{"ts":"2026-07-28T09:04:11Z","source_id":"nlpdp-sa-criteria","http_status":200,
+ "final_url":"https://www.gov.nl.ca/hcs/files/Criteria-July-2026.pdf",
+ "bytes":2841923,"last_modified":"Thu, 16 Jul 2026 13:22:04 GMT","etag":"\"2b5f-63a...\"",
+ "raw_hash":"sha256:...","normalized_hash":"sha256:b7e77792...",
+ "normalizer_fingerprint":"pdftotext-24.02.0","changed":false,"error":null}
+```
+
+Written to `/var/lib/cail-acquire/runlog.jsonl` on every run including no-change runs, and mirrored to R2 at `runlog/<source_id>.jsonl` after each run.
+
+This is not a soak-only artifact. It is permanent, and it is the only place the system records what happened on a day when nothing changed. Three things depend on it:
+
+- **Milestone 5** reads it to compute the churn rate. Without it the soak produces no evidence, because the status file is current-state and R2 stores nothing when the hash is unchanged.
+- **Open item 3**, NL monthly cadence inferred from a single observation, is answered by the log after two revisions rather than by inference.
+- **Distinguishing a stable source from a broken fetch.** A hash that never changes and a fetcher that silently returns the same cached bytes look identical in the status file. In the runlog they do not: a working fetch advances `ts` and records a fresh `http_status` every day.
+
+Never overwritten, never rotated during a soak. Retention is covered by open item 7 along with the payload objects.
 
 ---
 
@@ -692,7 +715,7 @@ Do not start a milestone before the prior acceptance criterion is met and commit
 | 2 | `scrape_anchor` resolves NL criteria URL | Resolves the current `Criteria-<Month>-<Year>.pdf`. Zero-match and multi-match both fail loudly |
 | 3 | Fetch NL payload, `pdftotext -layout`, hash | Stable hash across two consecutive runs **on the deploy poppler version**. No R2, no git. `payload_confirmed` flips true, `normalizer_fingerprint` recorded |
 | 4 | R2 store | Raw and normalized objects at content-addressed keys. Rerun writes identical keys. Bucket confirmed private. Poppler mismatch (open item 12) resolved before proceeding |
-| 5 | **Seven-day soak, NL only** | Seven days of hashes **on the droplet, on the deploy poppler**. Churn rate measured. `strip_rules` tuned against observation and committed |
+| 5 | **Seven-day soak, NL only** | Seven consecutive days in `runlog.jsonl` (§6.10) **on the droplet, on the deploy poppler**, with `ts` advancing daily and `consecutive_failures` at zero. Churn rate computed from the log. `strip_rules` tuned against observation and committed, or explicitly recorded as none needed |
 | 6 | PHI gate | Fires on synthetic SIN and MCP positives. Zero hits across the soak corpus |
 | 7 | Add DPD | **Architectural test.** Should require a config row, one fetch strategy, one normalizer, and nothing else. If anything else must change, the design failed and that is worth knowing on source two rather than source six. **Caveat: tests a second source, not a second jurisdiction.** See items 13 to 15 below |
 | 8 | Semantic diff | Report generated for a real observed change, or a synthetic edit of a captured payload |
