@@ -2,7 +2,6 @@
 
 This file governs **only** the acquisition binary. If a task is about encoding a drug, designing a rule schema, or building the engine, it does not belong in this repo and you should say so rather than doing it here.
 
----
 
 ## What this binary does
 
@@ -68,6 +67,8 @@ If a code path could write outside the three allowed paths, that is a bug regard
 
 18. **Never commit a real PHI positive to `testdata/`.** Synthetic fixtures only.
 
+19. **The poppler version is part of the hash.** Every hash and every golden fixture must be generated on the deploy version, currently 24.02. A hash produced on a different `pdftotext` build is not valid for production. Record it in `normalizer_fingerprint`; a mismatch is exit 50 and halts before any write, never a content change.
+
 ---
 
 ## Verified constants
@@ -81,7 +82,7 @@ Verified 2026-07-27 against publisher pages. Do not re-derive. Do not "correct" 
 | Manifest URL (index) | `https://www.gov.nl.ca/hcs/prescription/covered-specialauthdrugs/` |
 | Host | `gov.nl.ca`. **Not** `health.gov.nl.ca` |
 | Payload shape | One consolidated PDF, all drugs. Not per-drug |
-| Payload URL as of 2026-07-27 | `https://www.gov.nl.ca/hcs/files/Criteria-July-2026.pdf` — date-stamped, changes each revision, **never hardcode** |
+| Payload URL as of 2026-07-27 | `https://www.gov.nl.ca/hcs/files/Criteria-July-2026.pdf`, date-stamped, changes each revision, **never hardcode** |
 | Anchor pattern | `Criteria-[A-Za-z]+-\d{4}\.pdf$` |
 | Anchor text | Carries a revision date. Record in the diff header. Never drives the hash |
 | Bulletins | Behind `https://nlpdp.bell.ca/`, authenticated SPA. Not harvestable. Out of scope |
@@ -106,12 +107,41 @@ Extract mechanics, column layouts, product role, biosimilar joins, and the API's
 |---|---|
 | Go | 1.26.5 |
 | R2 client | region `auto`, static credentials, `o.BaseEndpoint = aws.String("https://<account_id>.r2.cloudflarestorage.com")` |
-| PDF | `pdftotext -layout`, shelled out. poppler-utils, GPL, Ubuntu 24.04 LTS main |
+| PDF | `pdftotext -layout`, shelled out. poppler-utils 24.02, Ubuntu 24.04 LTS main, GPL. **This version is a hash input.** Generating a hash on any other build produces a value invalid for production |
 | GitLab token | `api` scope, Developer role. `read_repository` is insufficient |
 | Scheduler | systemd timer, `Persistent=true`. Not cron |
 | PHI patterns | NL MCP 12 digits. SIN 9 digits with Luhn check |
 
 ---
+
+## Style
+
+Go style is the **Google Go Style Guide**, adopted by reference:
+
+- Guide (canonical): `https://google.github.io/styleguide/go/guide`
+- Decisions (normative): `https://google.github.io/styleguide/go/decisions`
+- Best Practices (advisory): `https://google.github.io/styleguide/go/best-practices`
+
+Read the relevant section rather than guessing. Do not copy the guide into this repo. `DECISIONS.md` §11 records only the places where this project had to choose something the guide leaves open.
+
+The project-specific choices, because the guide assumes Google-internal libraries this repo does not have:
+
+| | |
+|---|---|
+| Logging | `log/slog`, stdlib. No glog, no third-party logger |
+| Subcommands | stdlib `flag` plus a switch on `os.Args[1]`. No cobra, no `subcommands` |
+| Comparison in tests | `github.com/google/go-cmp`, test-only. No assertion libraries |
+| Flags | Defined only in `package main`. Snake case names, mixed caps variables |
+| Program exit | `main` maps sentinel errors to exit codes with `errors.Is`. No `log.Fatal`, no `panic` |
+| Secrets | Read from the environment once, in `main`, passed down. No package calls `os.Getenv` |
+
+Package names are already chosen to avoid shadowing common locals, per `DECISIONS.md` §11.2: `polltable`, `semdiff`, `statusfile`, `payloadstore`, `phigate`. Do not rename them back to the shorter forms; `diff`, `status`, `store`, and `config` all collide with variable names this code will use.
+
+Two rules worth stating here because they are easy to get wrong and appear everywhere in this codebase:
+
+**`%w` placement.** General wrapping puts it last, `"reading manifest: %w"`. Sentinel wrapping puts it first, `"%w: source %q"`, so the category reads first. The PHI sentinel is the case that matters.
+
+**`%q` for strings that may be empty or hold whitespace.** That means every URL, hash, anchor match, and source id in a log line or error. An empty string is invisible; `""` is not.
 
 ## Traps
 
@@ -127,13 +157,15 @@ Places where training data actively misleads. Each was wrong in a draft of this 
 
 5. **`health.gov.nl.ca` appears in older documents.** Current host is `gov.nl.ca`.
 
-6. **`SuccessExitStatus=10` in the systemd unit is deliberate.** Exit 10 means a change was found and an MR opened, which is normal operation. Removing it makes every real detection page a human.
+6. **Poppler version changes the hash.** `pdftotext -layout` output can differ across major versions, and `-layout` is more exposed than plain extraction because the layout heuristics themselves change. A hash means "this content as rendered by this poppler build." Local is 26.07, deploy is 24.02. Do not generate a hash or a golden fixture on the wrong one.
+
+7. **`SuccessExitStatus=10` in the systemd unit is deliberate.** Exit 10 means a change was found and an MR opened, which is normal operation. Removing it makes every real detection page a human.
 
 ---
 
 ## Exit codes
 
-Aggregate across sources, highest severity wins. Precedence 40, 30, 20, 10, 0.
+Aggregate across sources, highest severity wins. Precedence 50, 40, 30, 20, 10, 0. A fingerprint mismatch dominates because it makes every hash in the run untrustworthy.
 
 | Code | Meaning |
 |---|---|
@@ -142,21 +174,22 @@ Aggregate across sources, highest severity wins. Precedence 40, 30, 20, 10, 0.
 | 20 | Fetch, normalize, or store failure |
 | 30 | PHI gate fired |
 | 40 | Config or manifest error, nothing ran |
+| 50 | Normalizer fingerprint mismatch, nothing written |
 
 ---
 
 ## Current position
 
-Milestone 5 of 12. Full table and acceptance criteria in `CAIL-ACQUIRE-SPEC.md` §12.
+Milestone 5 of 12. Full table and acceptance criteria in `SPEC.md` §10.
 
-- **1** ✅ `DECISIONS.md` corrections committed (`cail-rules` @ 98b6b54)
-- **2** ✅ `scrape_anchor` resolves the NL criteria URL (zero/multi fail loudly; live-verified)
-- **3** ✅ Fetch, `pdftotext -layout`, stable hash (live hash `b7e77792…`; `payload_confirmed` flips)
-- **4** ✅ R2 store — content-addressed keys, faked in unit tests; live put + private-bucket check pending creds/soak. Gate placeholder wired before store.
-- **5** Seven-day soak ← **gate, do not build past this** (needs R2 creds + deploy)
-- **7** Add DPD. **Architectural test:** should require a config row, one fetch strategy, one normalizer, nothing else. If anything else must change, stop and say so
+- **1** DONE. `DECISIONS.md` corrections committed, `cail-rules` @ 98b6b54
+- **2** DONE. `scrape_anchor` resolves the NL criteria URL, zero and multi both fail loudly, live-verified
+- **3** PROVISIONAL. Live hash `b7e77792...`, `payload_confirmed` flips. **Open: which poppler produced that hash.** If 26.07 rather than the deploy 24.02, the hash is not valid for production, `payload_confirmed` is premature, and `normalizer_fingerprint` was never recorded. Resolve before treating M3 as closed
+- **4** PROVISIONAL. Content-addressed keys, faked in unit tests. Gate placeholder wired before store, which is correct per rule 5. **Outstanding against the M4 criteria:** live put, rerun-writes-identical-keys, bucket-confirmed-private, and open item 12
+- **5** Seven-day soak. **HARD GATE, do not build past this.** Must run on the droplet on deploy poppler; a churn rate measured on 26.07 says nothing about production
+- **7** Add DPD. Architectural test: a config row, one fetch strategy, one normalizer, nothing else. Anything more means the design failed. Caveat: this tests a second source, not a second jurisdiction
 
----
+Do not write `semdiff`, `vcs`, or the real `phigate` until milestone 5 produces a churn number.
 
 ## When unsure
 
