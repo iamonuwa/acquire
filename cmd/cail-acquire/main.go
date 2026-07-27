@@ -6,7 +6,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -69,13 +68,12 @@ func runPoll(args []string) int {
 	fs := flag.NewFlagSet("poll", flag.ContinueOnError)
 	source := fs.String("source", "", "only poll this source id (default: all enabled)")
 	dryRun := fs.Bool("dry-run", false, "resolve and report without writing anywhere")
-	force := fs.Bool("force", false, "ignore poll_interval (no effect until milestone 10)")
+	fs.Bool("force", false, "ignore poll_interval (no effect until milestone 10)")
 	configPath := fs.String("config", "", "path to sources.poll.yaml (default: embedded table)")
 	manifestPath := fs.String("manifest", defaultManifestPath, "path to cail-rules sources.yaml")
 	if err := fs.Parse(args); err != nil {
 		return exitConfig
 	}
-	_ = force
 
 	raw := polldata.PollYAML
 	if *configPath != "" {
@@ -140,21 +138,14 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		}
 	}
 
-	strat, err := fetch.Get(src.Fetch)
+	strat, err := fetch.StrategyFor(src.Fetch)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch
 	}
 	m, err := strat.Resolve(ctx, client, indexURL, fetch.SpecFor(src))
 	if err != nil {
-		var nm *fetch.NoMatchError
-		var mm *fetch.MultiMatchError
-		switch {
-		case errors.As(err, &nm), errors.As(err, &mm):
-			fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
-		default:
-			fmt.Fprintf(os.Stderr, "[%s] fetch failed: %v\n", src.ID, err)
-		}
+		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch
 	}
 
