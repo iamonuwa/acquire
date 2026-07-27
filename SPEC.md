@@ -88,7 +88,8 @@ Toolchain constants are recorded in §9 and are not restated here except where a
 | Forms | `https://www.gov.nl.ca/hcs/forms` | VERIFIED |
 | Licence | All rights reserved, Government of NL. NL Open Government Licence covers `opendata.gov.nl.ca` only. See §8 | VERIFIED |
 | Cadence | Monthly | INFERENCE from one observation |
-| `Last-Modified` / `ETag` | Not captured | UNVERIFIED, resolve on first fetch |
+| `Last-Modified` | `Thu, 16 Jul 2026 12:21:55 GMT`, served | VERIFIED on droplet 2026-07-27 |
+| `ETag` | Served, `"256e008-656b97c5e9dcc"`. Apache `size-mtime` form, **no content information**. Size field equals the payload byte count; mtime field matches `Last-Modified` to the second | VERIFIED by decoding |
 | Payload bytes | Link confirmed, bytes not retrieved | UNVERIFIED until milestone 3 |
 
 URL instability is the design driver. A fetcher pointed at `Criteria-July-2026.pdf` breaks silently in August. Per §4, the manifest URL is the index page and the payload is discovered per run.
@@ -133,7 +134,7 @@ sources:
     publisher: NL Health and Community Services
     fetch: scrape_anchor
     normalize: pdf
-    poll_interval: 24h
+    poll_interval: 20h        # < timer period minus RandomizedDelaySec; see below
     staleness_alarm_days: 60
     enabled: true
     scrape:
@@ -146,7 +147,7 @@ sources:
     publisher: Health Canada
     fetch: scrape_anchor
     normalize: zip_members
-    poll_interval: 168h
+    poll_interval: 160h       # 7 daily ticks, with margin
     staleness_alarm_days: 60
     enabled: false
     scrape:
@@ -165,6 +166,10 @@ DPD is `enabled: false` until milestone 7. The row exists from day one so the so
 Alberta and RAMQ appear as `state: unresolved` rows per §4, so CI counts them. They are not poll targets and carry no URL.
 
 Validation at load, all fatal: unknown `fetch` or `normalize` enum value; a poll row with no matching `sources.yaml` entry; a `sources.yaml` entry in `state: active` with no poll row.
+
+**`poll_interval` must be strictly less than the timer period minus the maximum `RandomizedDelaySec`.** This is not a style preference. The timer fires daily at 09:00 plus a delay re-drawn on every firing, so consecutive fires are separated by anywhere from 23h55m to 24h05m. A `poll_interval` of exactly 24h therefore skips the source on roughly half of all days, and a run that skips its only source still exits 0 and looks healthy. Simulated over eight days with realistic delay draws, a 24h interval lost three of them.
+
+The interval is a floor against over-fetching, not a scheduler. The timer schedules; the interval only stops a source being hit more often than intended when the timer runs more often than the source needs. Set it to the intended period less a comfortable margin: 20h for a daily source, 160h for a weekly one.
 
 `strip_rules` starts empty and stays empty until the soak produces observations. Per §7, every entry carries a comment naming the observed false positive and its date.
 
@@ -233,7 +238,7 @@ Environment only. Never a flag, config file, log line, or test fixture. Assert a
 
 Per source, per run:
 
-1. Load poll row. Skip if inside `poll_interval` and not `--force`.
+1. Load poll row. Skip if inside `poll_interval` and not `--force`. A skip writes a runlog line with `"status":"skipped"` (§6.10) and no hash fields. A skipped source and a timer that never fired must not look alike in the log.
 2. Fetch index page. Extract anchor matching `anchor_pattern` within `link_scope`. Resolve to absolute URL.
 3. Compare resolved payload URL to `last_payload_url`. A difference is a finding reported in the diff header, never a silent manifest rewrite (§4).
 4. Fetch payload. Record HTTP status, final URL after redirects, byte count, `Last-Modified` and `ETag` if present.
@@ -410,10 +415,15 @@ Append-only record of every fetch attempt, one line per source per run. JSONL.
  "final_url":"https://www.gov.nl.ca/hcs/files/Criteria-July-2026.pdf",
  "bytes":2841923,"last_modified":"Thu, 16 Jul 2026 13:22:04 GMT","etag":"\"2b5f-63a...\"",
  "raw_hash":"sha256:...","normalized_hash":"sha256:b7e77792...",
- "normalizer_fingerprint":"pdftotext-24.02.0","changed":false,"error":null}
+ "normalizer_fingerprint":"pdftotext-24.02.0","changed":false,
+ "trigger":"timer","error":null}
 ```
 
 Written to `/var/lib/cail-acquire/runlog.jsonl` on every run including no-change runs, and mirrored to R2 at `runlog/<source_id>.jsonl` after each run.
+
+`status` is `ok`, `skipped`, or `failed`. A skipped source produces a line with no hash fields. Without this, a day the source was skipped inside `poll_interval` is indistinguishable from a day the timer never fired, and the milestone 5 count silently comes up short.
+
+`trigger` is `timer` or `manual`. The unit passes `--trigger=timer` in `ExecStart`; anything run by hand omits the flag and records `manual`. This exists because the milestone 5 criterion is seven consecutive **unattended** runs, and a `systemctl start` fired by a human writes a line otherwise indistinguishable from a timer firing. Timestamp clustering near the `OnCalendar` time is a usable proxy but an implicit one, and the soak is the wrong place to rely on a proxy.
 
 This is not a soak-only artifact. It is permanent, and it is the only place the system records what happened on a day when nothing changed. Three things depend on it:
 
@@ -494,7 +504,7 @@ Type=oneshot
 User=cail
 EnvironmentFile=/etc/cail-acquire/env
 WorkingDirectory=/var/lib/cail-acquire
-ExecStart=/usr/local/bin/cail-acquire poll
+ExecStart=/usr/local/bin/cail-acquire poll --trigger=timer
 ExecStartPost=/usr/bin/curl -fsS -m 10 --retry 3 ${HC_PING_URL}
 SuccessExitStatus=10
 TimeoutStartSec=30m
@@ -715,7 +725,7 @@ Do not start a milestone before the prior acceptance criterion is met and commit
 | 2 | `scrape_anchor` resolves NL criteria URL | Resolves the current `Criteria-<Month>-<Year>.pdf`. Zero-match and multi-match both fail loudly |
 | 3 | Fetch NL payload, `pdftotext -layout`, hash | Stable hash across two consecutive runs **on the deploy poppler version**. No R2, no git. `payload_confirmed` flips true, `normalizer_fingerprint` recorded |
 | 4 | R2 store | Raw and normalized objects at content-addressed keys. Rerun writes identical keys. Bucket confirmed private. Poppler mismatch (open item 12) resolved before proceeding |
-| 5 | **Seven-day soak, NL only** | Seven consecutive days in `runlog.jsonl` (§6.10) **on the droplet, on the deploy poppler**, with `ts` advancing daily and `consecutive_failures` at zero. Churn rate computed from the log. `strip_rules` tuned against observation and committed, or explicitly recorded as none needed |
+| 5 | **Seven-day soak, NL only** | Seven consecutive days in `runlog.jsonl` (§6.10) **on the droplet, on the deploy poppler**, each with `trigger: timer`, `ts` advancing daily, and `consecutive_failures` at zero. Churn rate computed from the log. `strip_rules` tuned against observation and committed, or explicitly recorded as none needed |
 | 6 | PHI gate | Fires on synthetic SIN and MCP positives. Zero hits across the soak corpus |
 | 7 | Add DPD | **Architectural test.** Should require a config row, one fetch strategy, one normalizer, and nothing else. If anything else must change, the design failed and that is worth knowing on source two rather than source six. **Caveat: tests a second source, not a second jurisdiction.** See items 13 to 15 below |
 | 8 | Semantic diff | Report generated for a real observed change, or a synthetic edit of a captured payload |
@@ -738,14 +748,14 @@ Consolidated open items live in §10 and are authoritative. Those bearing on thi
 
 | §10 item | Bears on |
 |---|---|
-| 2. `gov.nl.ca` `Last-Modified` / `ETag` unresolved | Milestone 3. Capture on first fetch. A cheap pre-hash signal if present, never authoritative |
+| ~~2. `gov.nl.ca` `Last-Modified` / `ETag` unresolved~~ | **Resolved 2026-07-27.** Both served. ETag is `size-mtime`, so a byte-identical republication produces a new ETag. Usable as a pre-hash skip signal only in the negative direction: unchanged ETag implies unchanged file, changed ETag implies nothing |
 | 3. NL monthly cadence inferred from one observation | Milestone 5. Confirm across two revisions during the soak |
 | 4. DPD line endings undocumented | Milestone 7. Detect empirically |
 | 5. Extract status scope undecided | Milestone 11. `allfiles.zip` is marketed-only; approved-not-yet-marketed products are in `allfiles_ap.zip`, and newly launched biosimilars are exactly that case. §5 says ingest the whole extract with no filtering, which argues for both variants tagged by source |
 | 7. Retention scope | Belongs in `store` as an R2 lifecycle rule. Undecided means unlimited retention by default, a decision made by omission |
 | ~~10. Alert transport unchosen~~ | **Resolved 2026-07-27.** Healthchecks.io free tier for heartbeat and absence detection, ntfy.sh for push. See §9.5.2. Update DECISIONS §10 item 10 to match |
 | 11. Soak gate enforcement mechanism | Milestone 5. See §10 above |
-| 12. Development poppler does not match deploy poppler | **Milestone 4, blocking.** 26.07 local against 24.02 target. Every hash generated before this is resolved is invalid for production, and the milestone 5 soak measures nothing if run on the wrong build |
+| ~~12. Development poppler does not match deploy poppler~~ | **Resolved for NLPDP 2026-07-27.** Droplet reproduced the development hash exactly. Reopens for any new source or poppler upgrade; `normalizer_fingerprint` still required |
 | 13. PHI gate not jurisdiction-extensible | Province two. §6.3 patterns are fixed in code, not a registry keyed by jurisdiction. `gate_partial` marks the gap without closing it |
 | 14. Language and locale unaddressed | Province two, specifically RAMQ. Affects normalization of accented text, PHI patterns near French date formats, and §6.5 heading heuristics, which assume English document structure |
 | 15. `probe_forward` unbuilt | Ontario. Filename pattern must be derived from live observation, never from memory |
