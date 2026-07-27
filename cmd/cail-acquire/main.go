@@ -13,8 +13,10 @@ import (
 	polldata "gitlab.com/cail-health/cail-acquire/config"
 	"gitlab.com/cail-health/cail-acquire/internal/config"
 	"gitlab.com/cail-health/cail-acquire/internal/fetch"
+	"gitlab.com/cail-health/cail-acquire/internal/gate"
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
 	"gitlab.com/cail-health/cail-acquire/internal/normalize"
+	"gitlab.com/cail-health/cail-acquire/internal/store"
 )
 
 // Exit codes, aggregated across sources with highest severity winning.
@@ -103,6 +105,22 @@ func runPoll(args []string) int {
 	client := fetch.NewClient()
 	ctx := context.Background()
 
+	// Assert R2 secrets and build the store before any network call (rule 11).
+	// --dry-run never writes, so it needs no credentials (§9.1).
+	var st store.Store
+	if !*dryRun {
+		if err := store.RequireSecrets(); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return exitConfig
+		}
+		r2, err := store.NewR2(ctx)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return exitConfig
+		}
+		st = r2
+	}
+
 	exit := exitOK
 	polled := 0
 	for i := range table.Sources {
@@ -114,7 +132,7 @@ func runPoll(args []string) int {
 			continue
 		}
 		polled++
-		if code := pollSource(ctx, client, man, *manifestPath, src, *dryRun); code > exit {
+		if code := pollSource(ctx, client, man, st, *manifestPath, src, *dryRun); code > exit {
 			exit = code
 		}
 	}
@@ -125,7 +143,7 @@ func runPoll(args []string) int {
 	return exit
 }
 
-func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, manifestPath string, src *config.Source, dryRun bool) int {
+func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, st store.Store, manifestPath string, src *config.Source, dryRun bool) int {
 	indexURL, err := man.IndexURL(src.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
@@ -176,10 +194,30 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		fmt.Printf("            last-modified=%q etag=%q\n", resp.LastModified, resp.ETag)
 	}
 
-	// M3 persists provenance only — no R2, no git.
+	if !changed {
+		return exitOK
+	}
+
+	// PHI gate before any write (rules 5, 6). Placeholder until milestone 6.
+	if res := gate.Check(text); res.Hit {
+		fmt.Fprintf(os.Stderr, "[%s] PHI gate fired: %s\n", src.ID, res.Reason)
+		return exitPHI
+	}
+
 	if dryRun {
 		return exitOK
 	}
+
+	// R2 first (rule 6): content-addressed orphans are harmless. Two objects.
+	if err := st.Put(ctx, store.RawKey(src.ID, rawHash), resp.Body); err != nil {
+		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
+		return exitFetch
+	}
+	if err := st.Put(ctx, store.NormKey(src.ID, normHash), text); err != nil {
+		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
+		return exitFetch
+	}
+
 	confirmed := true
 	urlStr := m.URL.String()
 	if err := manifest.UpdateEntry(manifestPath, src.ID, manifest.Update{
