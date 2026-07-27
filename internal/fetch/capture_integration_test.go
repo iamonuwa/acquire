@@ -21,19 +21,19 @@ func TestCaptureNLIndex(t *testing.T) {
 	defer cancel()
 
 	c := NewClient()
-	body, _, err := c.Get(ctx, nlIndexURL)
+	resp, err := c.Fetch(ctx, nlIndexURL)
 	if err != nil {
 		t.Fatalf("live fetch of NL index failed: %v", err)
 	}
-	if len(body) == 0 {
+	if len(resp.Body) == 0 {
 		t.Fatal("live NL index returned an empty body")
 	}
 
 	out := filepath.Join("..", "..", "testdata", "nlpdp_index_happy_live.html")
-	if err := os.WriteFile(out, body, 0o644); err != nil {
+	if err := os.WriteFile(out, resp.Body, 0o644); err != nil {
 		t.Fatalf("write captured fixture: %v", err)
 	}
-	t.Logf("captured %d bytes to %s — review before commit", len(body), out)
+	t.Logf("captured %d bytes to %s — review before commit", len(resp.Body), out)
 
 	m, err := ScrapeAnchor{}.Resolve(ctx, c, nlIndexURL, nlSpec())
 	if err != nil {

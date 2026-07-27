@@ -123,15 +123,6 @@ func (c *Client) Fetch(ctx context.Context, rawURL string) (*Response, error) {
 	return nil, fmt.Errorf("fetch: %s failed after %d attempts: %w", rawURL, c.maxRetries+1, lastErr)
 }
 
-// Get returns the body and final URL only; used for index pages.
-func (c *Client) Get(ctx context.Context, rawURL string) ([]byte, *url.URL, error) {
-	resp, err := c.Fetch(ctx, rawURL)
-	if err != nil {
-		return nil, nil, err
-	}
-	return resp.Body, resp.FinalURL, nil
-}
-
 func (c *Client) doOnce(ctx context.Context, rawURL string) (*Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {

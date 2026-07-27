@@ -43,8 +43,8 @@ var registry = map[config.Fetch]Strategy{
 	config.FetchScrapeAnchor: ScrapeAnchor{},
 }
 
-// Get returns the fetch strategy for f, or a fatal error if none is registered.
-func Get(f config.Fetch) (Strategy, error) {
+// StrategyFor returns the fetch strategy for f, or a fatal error if none is registered.
+func StrategyFor(f config.Fetch) (Strategy, error) {
 	s, ok := registry[f]
 	if !ok {
 		return nil, fmt.Errorf("fetch: no strategy for %q (unknown or not yet implemented)", f)
@@ -58,19 +58,19 @@ func (ScrapeAnchor) Resolve(ctx context.Context, c *Client, indexURL string, spe
 	if spec.AnchorRE == nil {
 		return nil, fmt.Errorf("fetch: scrape_anchor for %s has no compiled anchor pattern", indexURL)
 	}
-	body, finalURL, err := c.Get(ctx, indexURL)
+	resp, err := c.Fetch(ctx, indexURL)
 	if err != nil {
 		return nil, err
 	}
 
-	base := finalURL
+	base := resp.FinalURL
 	if base == nil {
 		if base, err = url.Parse(indexURL); err != nil {
 			return nil, fmt.Errorf("fetch: parse index URL %s: %w", indexURL, err)
 		}
 	}
 
-	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(body))
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(resp.Body))
 	if err != nil {
 		return nil, fmt.Errorf("fetch: parse index page %s: %w", indexURL, err)
 	}

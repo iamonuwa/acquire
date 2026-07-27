@@ -25,7 +25,7 @@ func TestClient_RetriesOn5xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, _, err := fastClient(WithMaxRetries(3)).Get(context.Background(), srv.URL)
+	_, err := fastClient(WithMaxRetries(3)).Fetch(context.Background(), srv.URL)
 	if err == nil {
 		t.Fatal("expected failure after retries")
 	}
@@ -49,12 +49,12 @@ func TestClient_SucceedsAfterRetry(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	body, _, err := fastClient(WithMaxRetries(3)).Get(context.Background(), srv.URL)
+	resp, err := fastClient(WithMaxRetries(3)).Fetch(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("expected success on 3rd attempt: %v", err)
 	}
-	if string(body) != "ok" {
-		t.Errorf("body = %q, want ok", body)
+	if string(resp.Body) != "ok" {
+		t.Errorf("body = %q, want ok", resp.Body)
 	}
 	if got := hits.Load(); got != 3 {
 		t.Errorf("server hits = %d, want 3", got)
@@ -69,7 +69,7 @@ func TestClient_NoRetryOn4xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, _, err := fastClient(WithMaxRetries(3)).Get(context.Background(), srv.URL)
+	_, err := fastClient(WithMaxRetries(3)).Fetch(context.Background(), srv.URL)
 	if got := hits.Load(); got != 1 {
 		t.Errorf("server hits = %d, want 1 (no retry on 4xx)", got)
 	}
@@ -90,7 +90,7 @@ func TestClient_RedirectCap(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, _, err := fastClient().Get(context.Background(), srv.URL)
+	_, err := fastClient().Fetch(context.Background(), srv.URL)
 	if err == nil {
 		t.Fatal("expected redirect-cap failure")
 	}
@@ -111,7 +111,7 @@ func TestClient_UserAgentIdentifiesCAIL(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, _, err := fastClient().Get(context.Background(), srv.URL); err != nil {
+	if _, err := fastClient().Fetch(context.Background(), srv.URL); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.HasPrefix(ua, "CAIL-acquire/") {
@@ -130,7 +130,7 @@ func TestClient_ContextCancelNotRetried(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel() // already cancelled
-	_, _, err := NewClient(WithRetryBase(time.Second)).Get(ctx, srv.URL)
+	_, err := NewClient(WithRetryBase(time.Second)).Fetch(ctx, srv.URL)
 	if err == nil {
 		t.Fatal("expected context cancellation error")
 	}
