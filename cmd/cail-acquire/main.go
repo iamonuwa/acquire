@@ -4,6 +4,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -13,6 +15,7 @@ import (
 	"gitlab.com/cail-health/cail-acquire/internal/config"
 	"gitlab.com/cail-health/cail-acquire/internal/fetch"
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
+	"gitlab.com/cail-health/cail-acquire/internal/normalize"
 )
 
 // Exit codes, aggregated across sources with highest severity winning.
@@ -113,7 +116,7 @@ func runPoll(args []string) int {
 			continue
 		}
 		polled++
-		if code := pollSource(ctx, client, man, src, *dryRun); code > exit {
+		if code := pollSource(ctx, client, man, *manifestPath, src, *dryRun); code > exit {
 			exit = code
 		}
 	}
@@ -124,12 +127,19 @@ func runPoll(args []string) int {
 	return exit
 }
 
-func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, src *config.Source, dryRun bool) int {
+func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, manifestPath string, src *config.Source, dryRun bool) int {
 	indexURL, err := man.IndexURL(src.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
 		return exitFetch
 	}
+	if src.Normalize == config.NormalizePDF {
+		if err := normalize.AssertAvailable(); err != nil {
+			fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
+			return exitFetch
+		}
+	}
+
 	strat, err := fetch.Get(src.Fetch)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
@@ -148,13 +158,52 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		return exitFetch
 	}
 
+	resp, err := client.Fetch(ctx, m.URL.String())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[%s] payload fetch failed: %v\n", src.ID, err)
+		return exitFetch
+	}
+	text, err := normalize.Apply(ctx, src.Normalize, resp.Body)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
+		return exitFetch
+	}
+
+	rawHash := sha256Hex(resp.Body)
+	normHash := sha256Hex(text)
+
+	entry, _ := man.Entry(src.ID)
+	changed := entry == nil || entry.NormalizedHash != normHash
+
 	prefix := ""
 	if dryRun {
 		prefix = "[dry-run] "
 	}
-	fmt.Printf("%s[%s] resolved payload: %s\n", prefix, src.ID, m.URL)
-	if m.AnchorText != "" {
-		fmt.Printf("            anchor: %s\n", m.AnchorText)
+	fmt.Printf("%s[%s] payload %s (%d bytes)\n", prefix, src.ID, m.URL, resp.ByteCount)
+	fmt.Printf("            normalized_hash %s change=%t\n", normHash, changed)
+	if resp.LastModified != "" || resp.ETag != "" {
+		fmt.Printf("            last-modified=%q etag=%q\n", resp.LastModified, resp.ETag)
+	}
+
+	// M3 persists provenance only — no R2, no git.
+	if dryRun {
+		return exitOK
+	}
+	confirmed := true
+	urlStr := m.URL.String()
+	if err := manifest.UpdateEntry(manifestPath, src.ID, manifest.Update{
+		PayloadConfirmed: &confirmed,
+		RawHash:          &rawHash,
+		NormalizedHash:   &normHash,
+		LastPayloadURL:   &urlStr,
+	}); err != nil {
+		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
+		return exitFetch
 	}
 	return exitOK
+}
+
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }

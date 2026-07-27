@@ -91,49 +91,75 @@ func (e *HTTPStatusError) Error() string {
 // Retryable reports whether the status warrants a retry (5xx only).
 func (e *HTTPStatusError) Retryable() bool { return e.StatusCode >= 500 }
 
-// Get issues a GET with retry/backoff and returns the body plus the final URL
-// after redirects (the base for relative-anchor resolution).
-func (c *Client) Get(ctx context.Context, rawURL string) (body []byte, finalURL *url.URL, err error) {
+// Response is a successful fetch and the provenance a reviewer records.
+type Response struct {
+	Body         []byte
+	FinalURL     *url.URL
+	StatusCode   int
+	ByteCount    int
+	LastModified string
+	ETag         string
+}
+
+// Fetch issues a GET with retry/backoff and returns the body plus response
+// metadata (SPEC §5 step 4).
+func (c *Client) Fetch(ctx context.Context, rawURL string) (*Response, error) {
 	var lastErr error
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		if attempt > 0 {
 			if werr := c.backoff(ctx, attempt); werr != nil {
-				return nil, nil, werr
+				return nil, werr
 			}
 		}
-		body, finalURL, err = c.doOnce(ctx, rawURL)
+		resp, err := c.doOnce(ctx, rawURL)
 		if err == nil {
-			return body, finalURL, nil
+			return resp, nil
 		}
 		lastErr = err
 		if !retryable(err) {
-			return nil, nil, err
+			return nil, err
 		}
 	}
-	return nil, nil, fmt.Errorf("fetch: %s failed after %d attempts: %w", rawURL, c.maxRetries+1, lastErr)
+	return nil, fmt.Errorf("fetch: %s failed after %d attempts: %w", rawURL, c.maxRetries+1, lastErr)
 }
 
-func (c *Client) doOnce(ctx context.Context, rawURL string) ([]byte, *url.URL, error) {
+// Get returns the body and final URL only; used for index pages.
+func (c *Client) Get(ctx context.Context, rawURL string) ([]byte, *url.URL, error) {
+	resp, err := c.Fetch(ctx, rawURL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return resp.Body, resp.FinalURL, nil
+}
+
+func (c *Client) doOnce(ctx context.Context, rawURL string) (*Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetch: build request for %s: %w", rawURL, err)
+		return nil, fmt.Errorf("fetch: build request for %s: %w", rawURL, err)
 	}
 	req.Header.Set("User-Agent", c.userAgent)
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, &HTTPStatusError{URL: rawURL, StatusCode: resp.StatusCode}
+		return nil, &HTTPStatusError{URL: rawURL, StatusCode: resp.StatusCode}
 	}
 	b, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, nil, fmt.Errorf("fetch: read body from %s: %w", rawURL, err)
+		return nil, fmt.Errorf("fetch: read body from %s: %w", rawURL, err)
 	}
-	return b, resp.Request.URL, nil
+	return &Response{
+		Body:         b,
+		FinalURL:     resp.Request.URL,
+		StatusCode:   resp.StatusCode,
+		ByteCount:    len(b),
+		LastModified: resp.Header.Get("Last-Modified"),
+		ETag:         resp.Header.Get("ETag"),
+	}, nil
 }
 
 func (c *Client) backoff(ctx context.Context, attempt int) error {
