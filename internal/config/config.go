@@ -14,15 +14,19 @@ import (
 type Fetch string
 
 const (
+	// FetchScrapeAnchor discovers the payload URL by scraping the index page.
 	FetchScrapeAnchor Fetch = "scrape_anchor"
-	FetchArchive      Fetch = "archive"
+	// FetchArchive downloads and extracts an archive (milestone 7).
+	FetchArchive Fetch = "archive"
 )
 
 // Normalize is the normalizer enum.
 type Normalize string
 
 const (
-	NormalizePDF        Normalize = "pdf"
+	// NormalizePDF extracts text with pdftotext -layout.
+	NormalizePDF Normalize = "pdf"
+	// NormalizeZipMembers concatenates ZIP member text (milestone 7).
 	NormalizeZipMembers Normalize = "zip_members"
 )
 
@@ -31,6 +35,7 @@ const stateUnresolved = "unresolved"
 // Duration decodes YAML duration strings like "24h".
 type Duration time.Duration
 
+// UnmarshalYAML decodes a Go duration string such as "24h".
 func (d *Duration) UnmarshalYAML(node *yaml.Node) error {
 	var s string
 	if err := node.Decode(&s); err != nil {
