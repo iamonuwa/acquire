@@ -19,8 +19,7 @@ var Version = "0.0.0-dev"
 const (
 	userAgentProduct = "CAIL-acquire"
 
-	// PLACEHOLDER — set to the real CAIL ops address before deploy.
-	contactAddress = "ops@cail-health.example"
+	contactAddress = "mailto:me@iamonuwa.dev"
 
 	connectTimeout   = 30 * time.Second
 	totalTimeout     = 10 * time.Minute

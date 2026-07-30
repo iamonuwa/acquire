@@ -1,11 +1,8 @@
 # Running cail-acquire
 
-Runs the poller once a day against the live NL source for about a week, so we can
-see how often its hash changes when the document itself hasn't.
+Runs the poller once a day against the live NL source for about a week, so we can see how often its hash changes when the document itself hasn't.
 
-**It must run on poppler 24.02** (what Ubuntu 24.04 ships). A different poppler
-produces a different hash, so the numbers wouldn't mean anything — your Mac's
-newer version won't do. Use an Ubuntu 24.04 host.
+**It must run on poppler 24.02** (what Ubuntu 24.04 ships). A different poppler produces a different hash, so the numbers wouldn't mean anything — your Mac's newer version won't do. Use an Ubuntu 24.04 host.
 
 ## 1. Build
 
@@ -54,10 +51,6 @@ systemctl enable --now cail-acquire.timer
 
 ## What to expect
 
-Most days it prints `change=false` and does nothing — that's the whole point. A
-`change=true` on a day NL didn't actually republish is noise worth writing down;
-we filter that out later. R2 only grows when the content really changes. If a run
-fails it triggers the alert service — set `ALERT_WEBHOOK` to get pinged, otherwise
-read the journal.
+Most days it prints `change=false` and does nothing — that's the whole point. A `change=true` on a day NL didn't actually republish is noise worth writing down; we filter that out later. R2 only grows when the content really changes. If a run fails it triggers the alert service — set `ALERT_WEBHOOK` to get pinged, otherwise read the journal.
 
 Give it about a week, then look at how much it churned.
