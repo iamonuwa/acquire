@@ -38,6 +38,11 @@ func (m *memStore) Put(_ context.Context, key string, body []byte) error {
 	return nil
 }
 
+func (m *memStore) Get(_ context.Context, key string) ([]byte, bool, error) {
+	b, ok := m.objects[key]
+	return b, ok, nil
+}
+
 func TestStore_RerunWritesIdenticalKey(t *testing.T) {
 	var s Store = &memStore{objects: map[string][]byte{}}
 	ctx := context.Background()

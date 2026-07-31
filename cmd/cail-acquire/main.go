@@ -19,7 +19,15 @@ import (
 	"gitlab.com/cail-health/cail-acquire/internal/phigate"
 	"gitlab.com/cail-health/cail-acquire/internal/polltable"
 	"gitlab.com/cail-health/cail-acquire/internal/runlog"
+	"gitlab.com/cail-health/cail-acquire/internal/statusfile"
 )
+
+// pollResult is what pollSource observed, for the status file.
+type pollResult struct {
+	changed        bool
+	lastPayloadURL string
+	normalizedHash string
+}
 
 // Exit codes, aggregated across sources with highest severity winning.
 const (
@@ -132,6 +140,7 @@ func runPoll(args []string) int {
 
 	exit := exitOK
 	polled := 0
+	var inputs []statusfile.Input
 	for i := range table.Sources {
 		src := &table.Sources[i]
 		if src.IsUnresolved() || !src.Enabled {
@@ -141,18 +150,57 @@ func runPoll(args []string) int {
 			continue
 		}
 		polled++
-		if code := pollSource(ctx, client, man, st, *manifestPath, *runlogPath, src, *dryRun); code > exit {
+		var res pollResult
+		code := pollSource(ctx, client, man, st, *manifestPath, *runlogPath, src, *dryRun, &res)
+		if code > exit {
 			exit = code
 		}
+		url := res.lastPayloadURL
+		if url == "" {
+			if e, ok := man.Entry(src.ID); ok {
+				url = e.LastPayloadURL
+			}
+		}
+		inputs = append(inputs, statusfile.Input{
+			ID:                 src.ID,
+			Jurisdiction:       src.Jurisdiction,
+			Failed:             code != exitOK && code != exitChange,
+			Changed:            res.changed,
+			LastPayloadURL:     url,
+			NormalizedHash:     res.normalizedHash,
+			StalenessAlarmDays: src.StalenessAlarmDays,
+		})
 	}
 	if *source != "" && polled == 0 {
 		fmt.Fprintf(os.Stderr, "poll: no enabled source matched --source=%q\n", *source)
 		return exitConfig
 	}
+	// Publish status after all sources, even after failures — an invisible
+	// failure is worse than a visible one.
+	if !*dryRun && st != nil {
+		publishStatus(ctx, st, inputs)
+	}
 	return exit
 }
 
-func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, st payloadstore.Store, manifestPath, runlogPath string, src *polltable.Source, dryRun bool) int {
+func publishStatus(ctx context.Context, st payloadstore.Store, inputs []statusfile.Input) {
+	var prev *statusfile.Status
+	if b, found, err := st.Get(ctx, payloadstore.StatusKey); err != nil {
+		fmt.Fprintf(os.Stderr, "status: read previous: %v\n", err)
+	} else if found {
+		prev, _ = statusfile.Parse(b)
+	}
+	body, err := statusfile.Marshal(statusfile.Build(time.Now(), inputs, prev))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return
+	}
+	if err := st.Put(ctx, payloadstore.StatusKey, body); err != nil {
+		fmt.Fprintf(os.Stderr, "status: publish: %v\n", err)
+	}
+}
+
+func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifest, st payloadstore.Store, manifestPath, runlogPath string, src *polltable.Source, dryRun bool, res *pollResult) int {
 	indexURL, err := man.IndexURL(src.ID)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "[%s] %v\n", src.ID, err)
@@ -206,6 +254,9 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 	}
 
 	changed := entry == nil || entry.NormalizedHash != normHash
+	res.changed = changed
+	res.lastPayloadURL = m.URL.String()
+	res.normalizedHash = normHash
 
 	prefix := ""
 	if dryRun {
@@ -249,9 +300,9 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 		return exitOK
 	}
 
-	// PHI gate before any write. Placeholder for now.
-	if res := phigate.Check(text); res.Hit {
-		fmt.Fprintf(os.Stderr, "[%s] PHI gate fired: %s\n", src.ID, res.Reason)
+	// PHI gate before any write.
+	if hit := phigate.Check(text); hit.Hit {
+		fmt.Fprintf(os.Stderr, "[%s] PHI gate fired: %s\n", src.ID, hit.Reason)
 		return exitPHI
 	}
 

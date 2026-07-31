@@ -4,7 +4,9 @@ package payloadstore
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -12,12 +14,17 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
 )
 
-// Store persists a payload at a content-addressed key.
+// Store persists and retrieves objects.
 type Store interface {
 	Put(ctx context.Context, key string, body []byte) error
+	Get(ctx context.Context, key string) (body []byte, found bool, err error)
 }
+
+// StatusKey is the object key for the published status file.
+const StatusKey = "status/current.json"
 
 // RawKey is the object key for a raw payload.
 func RawKey(sourceID, hash string) string { return "raw/" + sourceID + "/" + hash }
@@ -76,4 +83,25 @@ func (r *R2) Put(ctx context.Context, key string, body []byte) error {
 		return fmt.Errorf("payloadstore: put %s: %w", key, err)
 	}
 	return nil
+}
+
+// Get reads the object at key. A missing key returns found=false, not an error.
+func (r *R2) Get(ctx context.Context, key string) ([]byte, bool, error) {
+	out, err := r.client.GetObject(ctx, &s3.GetObjectInput{
+		Bucket: aws.String(r.bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		var ae smithy.APIError
+		if errors.As(err, &ae) && (ae.ErrorCode() == "NoSuchKey" || ae.ErrorCode() == "NotFound") {
+			return nil, false, nil
+		}
+		return nil, false, fmt.Errorf("payloadstore: get %s: %w", key, err)
+	}
+	defer out.Body.Close()
+	b, err := io.ReadAll(out.Body)
+	if err != nil {
+		return nil, false, fmt.Errorf("payloadstore: read %s: %w", key, err)
+	}
+	return b, true, nil
 }
