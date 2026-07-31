@@ -43,7 +43,7 @@ func Apply(ctx context.Context, kind polltable.Normalize, raw []byte) ([]byte, e
 	case polltable.NormalizePDF:
 		return PDF(ctx, raw)
 	case polltable.NormalizeZipMembers:
-		return nil, fmt.Errorf("normalize: zip_members not implemented yet")
+		return zipMembers(raw)
 	default:
 		return nil, fmt.Errorf("normalize: unknown normalizer %q", kind)
 	}
@@ -61,7 +61,7 @@ func Fingerprint(ctx context.Context, kind polltable.Normalize) (string, error) 
 		}
 		return "pdftotext-" + string(m[1]), nil
 	case polltable.NormalizeZipMembers:
-		return "", fmt.Errorf("normalize: fingerprint for zip_members not implemented yet")
+		return zipMembersFingerprint, nil
 	default:
 		return "", fmt.Errorf("normalize: unknown normalizer %q", kind)
 	}

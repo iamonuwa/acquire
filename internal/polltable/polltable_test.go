@@ -30,8 +30,8 @@ func TestLoad_EmbeddedTableIsValid(t *testing.T) {
 	if nl.Scrape.AnchorRE() == nil {
 		t.Error("nl anchor pattern not compiled")
 	}
-	if dpd := byID["hc-dpd-allfiles"]; dpd == nil || dpd.Enabled {
-		t.Error("dpd row should exist and be disabled for now")
+	if dpd := byID["hc-dpd-allfiles"]; dpd == nil || !dpd.Enabled || dpd.Normalize != NormalizeZipMembers {
+		t.Error("dpd row should exist, be enabled, and use zip_members")
 	}
 	if ab := byID["ab-idbl"]; ab == nil || !ab.IsUnresolved() {
 		t.Error("ab-idbl should be an unresolved stub")

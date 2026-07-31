@@ -22,7 +22,7 @@ sources:
     normalize: zip_members
     poll_interval: 168h
     staleness_alarm_days: 60
-    enabled: false
+    enabled: true
     scrape:
       link_scope: 'a[href$=".zip"]'
       anchor_pattern: 'allfiles\.zip$'

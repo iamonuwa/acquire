@@ -89,10 +89,13 @@ func TestFingerprint(t *testing.T) {
 }
 
 func TestApply_Dispatch(t *testing.T) {
-	if _, err := Apply(context.Background(), polltable.NormalizeZipMembers, nil); err == nil {
-		t.Error("zip_members should be unimplemented")
+	if _, err := Apply(context.Background(), polltable.NormalizeZipMembers, []byte("not a zip")); err == nil {
+		t.Error("invalid archive should error")
 	}
 	if _, err := Apply(context.Background(), polltable.Normalize("bogus"), nil); err == nil {
 		t.Error("unknown normalizer should error")
+	}
+	if fp, err := Fingerprint(context.Background(), polltable.NormalizeZipMembers); err != nil || fp != "zip_members-1" {
+		t.Errorf("zip_members fingerprint = %q, %v", fp, err)
 	}
 }
