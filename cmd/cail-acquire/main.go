@@ -11,6 +11,7 @@ import (
 	"time"
 
 	polldata "gitlab.com/cail-health/cail-acquire/config"
+	"gitlab.com/cail-health/cail-acquire/internal/catalogue"
 	"gitlab.com/cail-health/cail-acquire/internal/fetch"
 	"gitlab.com/cail-health/cail-acquire/internal/manifest"
 	"gitlab.com/cail-health/cail-acquire/internal/normalize"
@@ -46,7 +47,9 @@ func dispatch(args []string) int {
 	switch args[0] {
 	case "poll":
 		return runPoll(args[1:])
-	case "catalogue", "status", "verify-din":
+	case "catalogue":
+		return runCatalogue(args[1:])
+	case "status", "verify-din":
 		fmt.Fprintf(os.Stderr, "cail-acquire: %q is not implemented yet\n", args[0])
 		return exitConfig
 	default:
@@ -63,7 +66,7 @@ usage: cail-acquire <subcommand> [flags]
 
 subcommands:
   poll         resolve source payload URLs and report changes
-  catalogue    (not implemented) build the DPD catalogue
+  catalogue    build the DPD catalogue from an extract (--input allfiles.zip)
   status       (not implemented) build and publish the status file
   verify-din   (not implemented) single-DIN DPD API fallback
 
@@ -283,6 +286,32 @@ func pollSource(ctx context.Context, client *fetch.Client, man *manifest.Manifes
 
 func isBaselined(fp string) bool {
 	return fp != "" && fp != "UNVERIFIED"
+}
+
+func runCatalogue(args []string) int {
+	fs := flag.NewFlagSet("catalogue", flag.ContinueOnError)
+	input := fs.String("input", "", "path to allfiles.zip")
+	out := fs.String("out", "catalogue", "output directory")
+	if err := fs.Parse(args); err != nil {
+		return exitConfig
+	}
+	if *input == "" {
+		fmt.Fprintln(os.Stderr, "catalogue: --input <allfiles.zip> is required")
+		return exitConfig
+	}
+	data, err := os.ReadFile(*input)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "catalogue: %v\n", err)
+		return exitConfig
+	}
+	meta, err := catalogue.Build(data, *out)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitFetch
+	}
+	fmt.Printf("catalogue: %d ingredients, %d DINs -> %s (%s)\n",
+		meta.IngredientCount, meta.DINCount, *out, meta.SourceHash)
+	return exitOK
 }
 
 func sha256Hex(b []byte) string {
