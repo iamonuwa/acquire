@@ -5,9 +5,11 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"time"
 
 	polldata "gitlab.com/cail-health/cail-acquire/config"
@@ -20,6 +22,7 @@ import (
 	"gitlab.com/cail-health/cail-acquire/internal/polltable"
 	"gitlab.com/cail-health/cail-acquire/internal/runlog"
 	"gitlab.com/cail-health/cail-acquire/internal/statusfile"
+	"gitlab.com/cail-health/cail-acquire/internal/verifydin"
 )
 
 // pollResult is what pollSource observed, for the status file.
@@ -57,7 +60,9 @@ func dispatch(args []string) int {
 		return runPoll(args[1:])
 	case "catalogue":
 		return runCatalogue(args[1:])
-	case "status", "verify-din":
+	case "verify-din":
+		return runVerifyDIN(args[1:])
+	case "status":
 		fmt.Fprintf(os.Stderr, "cail-acquire: %q is not implemented yet\n", args[0])
 		return exitConfig
 	default:
@@ -76,7 +81,7 @@ subcommands:
   poll         resolve source payload URLs and report changes
   catalogue    build the DPD catalogue from an extract (--input allfiles.zip)
   status       (not implemented) build and publish the status file
-  verify-din   (not implemented) single-DIN DPD API fallback
+  verify-din   resolve a single DIN via the catalogue, then the DPD API (--din)
 
 run "cail-acquire poll -h" for poll flags.
 `)
@@ -362,6 +367,47 @@ func runCatalogue(args []string) int {
 	}
 	fmt.Printf("catalogue: %d ingredients, %d DINs -> %s (%s)\n",
 		meta.IngredientCount, meta.DINCount, *out, meta.SourceHash)
+	return exitOK
+}
+
+func runVerifyDIN(args []string) int {
+	fs := flag.NewFlagSet("verify-din", flag.ContinueOnError)
+	din := fs.String("din", "", "DIN to verify")
+	catDir := fs.String("catalogue", "", "catalogue directory holding din-index.json")
+	if err := fs.Parse(args); err != nil {
+		return exitConfig
+	}
+	if *din == "" {
+		fmt.Fprintln(os.Stderr, "verify-din: --din <DIN> is required")
+		return exitConfig
+	}
+
+	dinIndex := map[string][]string{}
+	if *catDir != "" {
+		b, err := os.ReadFile(filepath.Join(*catDir, "din-index.json"))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "verify-din: %v\n", err)
+			return exitConfig
+		}
+		if err := json.Unmarshal(b, &dinIndex); err != nil {
+			fmt.Fprintf(os.Stderr, "verify-din: parse din-index: %v\n", err)
+			return exitConfig
+		}
+	}
+
+	res, err := verifydin.Verify(context.Background(), fetch.NewClient(), verifydin.DefaultAPIBase, *din, dinIndex)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return exitFetch
+	}
+	switch res.Status {
+	case verifydin.InCatalogue:
+		fmt.Printf("%s: in catalogue -> %v\n", res.DIN, res.Slugs)
+	case verifydin.ExtractLagged:
+		fmt.Printf("%s: EXTRACT_LAGGED (in DPD API as %q, absent from the catalogue)\n", res.DIN, res.Brand)
+	case verifydin.NotFound:
+		fmt.Printf("%s: not found in the catalogue or the DPD API\n", res.DIN)
+	}
 	return exitOK
 }
 
