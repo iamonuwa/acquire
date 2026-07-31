@@ -99,7 +99,7 @@ Verified 2026-07-27 against publisher pages. Do not re-derive. Do not "correct" 
 | Refresh schedule | None published. Last updated 2026-07-02 |
 | Change feed | Email `osip.sys-bppi@hc-sc.gc.ca`. No RSS or Atom |
 
-Extract mechanics, column layouts, product role, biosimilar joins, and the API's ignored `din=` filter are in the **`dpd-extract` skill**, which loads when the work touches `internal/catalogue` or the extract files. They are not repeated here, because a fact stored in three places gets corrected in one.
+Extract mechanics, column layouts, product role, biosimilar joins, and the API's `din=` filter behaviour are in the **`dpd-extract` skill**, which loads when the work touches `internal/catalogue` or the extract files. They are not repeated here, because a fact stored in three places gets corrected in one.
 
 ### Toolchain
 
@@ -151,7 +151,7 @@ Places where training data actively misleads. Each was wrong in a draft of this 
 
 2. **`bios.zip` does not exist.** Health Canada's link text reads "bios.zip"; the href basename is `biosimilar.zip`. Requesting `bios.zip` returns 404. `allfiles.zip` already contains `bios.txt`, so you likely need neither.
 
-3. **The DPD API ignores `din=`.** Passing it returns the entire catalogue sorted by DIN. It looks like it should work. Resolve DIN to `drug_code`, or filter client-side.
+3. **The DPD API honors `din=` as of 2026-07-31** (earlier reported ignored — verify against the live API). `verify-din` queries `?din=` and filters client-side for an exact match, so it is correct either way.
 
 4. **`pdftotext` without `-layout` is wrong here.** The default reflows to reading order and destroys the row-to-criterion association in tabular criteria documents. The flag is not optional.
 

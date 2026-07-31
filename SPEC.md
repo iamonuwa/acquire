@@ -116,7 +116,7 @@ URL instability is the design driver. A fetcher pointed at `Criteria-July-2026.p
 | Refresh schedule | None published | VERIFIED as absent |
 | Change feed | Email `osip.sys-bppi@hc-sc.gc.ca`. No RSS or Atom | VERIFIED |
 | REST API | `https://health-products.canada.ca/api/drug/`, no auth | VERIFIED |
-| API `din=` filter | Ignored. Returns full catalogue sorted by DIN | VERIFIED |
+| API `din=` filter | Honored as of 2026-07-31 (earlier reported ignored); filter client-side anyway | VERIFIED |
 | API rate limit | None published, which is not a guarantee of none | VERIFIED as absent |
 
 Documented column layouts are recorded in §5.1 through §5.3 and are not duplicated here. Treat every layout as provisional per §5.3.
@@ -377,7 +377,7 @@ Ingest scope is unresolved. See open item 5 in §10 and §9.3 below.
 
 Milestone 12. Single-DIN fallback against the DPD JSON API. Never bulk (§5.4).
 
-The API ignores `din=`. Resolve DIN to `drug_code` first, or filter client-side. Cache results. Throttle conservatively; no published rate limit is not a guarantee of none.
+The API honors `din=` as of 2026-07-31 (earlier reported ignored). `verify-din` queries `?din=` and still filters client-side for an exact match, so a regression cannot break it. Cache results. Throttle conservatively; no published rate limit is not a guarantee of none.
 
 A DIN present in the API and absent from the catalogue is marked `EXTRACT_LAGGED`. Do not fail the build, do not invent a record (§5.4).
 
@@ -732,7 +732,7 @@ Do not start a milestone before the prior acceptance criterion is met and commit
 | 9 | Branch, push, MR | MR opens with the three required contents. Push to `main` confirmed rejected |
 | 10 | Status and alerting | Status publishes. A forced failure produces an alert |
 | 11 | `catalogue` subcommand | Three artifacts. Slug generation passes hard-case fixtures. Column-count assertion catches `ther.txt` |
-| 12 | `verify-din` | Resolves a known DIN correctly, working around the ignored `din=` filter |
+| 12 | `verify-din` | Resolves a known DIN correctly; queries `?din=` and filters client-side |
 
 Milestones 2 through 4 are the immediate work.
 

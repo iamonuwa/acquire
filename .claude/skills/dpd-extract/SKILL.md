@@ -79,7 +79,7 @@ Unit-test slug generation against the hard cases before trusting it:
 
 The DPD JSON API is a single-DIN verification fallback only, never a bulk source. No authentication is required.
 
-**Trap:** the API ignores a `din=` filter. Passing one returns the entire catalogue sorted by DIN ascending, which looks like a working request returning a lot of data. Resolve the DIN to `drug_code` first, or filter client-side. Cache results.
+The API **honors** the `din=` filter — `?din=<DIN>` returns just the matching product. It was previously observed ignoring the filter and returning the entire catalogue, so **filter client-side for an exact match anyway**; that stays correct whichever way the API behaves. Cache results.
 
 No rate limit is published. That is not a guarantee that none exists. Throttle conservatively.
 
